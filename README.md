@@ -1,6 +1,6 @@
 ## Payroll Lavado
 
-Define & APlly Payroll Penalties
+Define & Apply Payroll Penalties
 
 #### License
 
