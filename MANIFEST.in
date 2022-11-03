@@ -1,0 +1,18 @@
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include payroll_lavado *.css
+recursive-include payroll_lavado *.csv
+recursive-include payroll_lavado *.html
+recursive-include payroll_lavado *.ico
+recursive-include payroll_lavado *.js
+recursive-include payroll_lavado *.json
+recursive-include payroll_lavado *.md
+recursive-include payroll_lavado *.png
+recursive-include payroll_lavado *.py
+recursive-include payroll_lavado *.svg
+recursive-include payroll_lavado *.txt
+recursive-exclude payroll_lavado *.pyc
