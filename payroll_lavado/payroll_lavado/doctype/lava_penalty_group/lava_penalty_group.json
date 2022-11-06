@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:title",
+ "creation": "2022-11-03 14:49:35.063635",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "reset_duration",
+  "deduction_rule",
+  "sub_group"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "reset_duration",
+   "fieldtype": "Int",
+   "label": "Reset Duration"
+  },
+  {
+   "fieldname": "deduction_rule",
+   "fieldtype": "Link",
+   "label": "Deduction Rule",
+   "options": "Lava Deduction Rule",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sub_group",
+   "fieldtype": "Link",
+   "label": "Sub Group",
+   "options": "Lava Penalty Sub Group"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2022-11-03 14:56:41.211484",
+ "modified_by": "Administrator",
+ "module": "Payroll Lavado",
+ "name": "Lava Penalty Group",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

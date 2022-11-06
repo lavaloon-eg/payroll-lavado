@@ -1,0 +1,97 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:title",
+ "creation": "2022-11-03 15:00:22.602655",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "penalty_group",
+  "occurrence_number",
+  "deduction",
+  "deduction_amount",
+  "activation_date",
+  "enabled",
+  "tolerance_duration"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "penalty_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Penalty Group",
+   "options": "Lava Penalty Group",
+   "reqd": 1
+  },
+  {
+   "fieldname": "occurrence_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Occurrence Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "deduction",
+   "fieldtype": "Int",
+   "label": "Deduction (In days)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "deduction_amount",
+   "fieldtype": "Currency",
+   "label": "Deduction Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "activation_date",
+   "fieldtype": "Date",
+   "label": "Activation Date",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "description": "Used in penalties depend on time.",
+   "fieldname": "tolerance_duration",
+   "fieldtype": "Time",
+   "label": "Tolerance Duration "
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2022-11-03 15:03:41.093554",
+ "modified_by": "Administrator",
+ "module": "Payroll Lavado",
+ "name": "Lava Penalty Policy",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
