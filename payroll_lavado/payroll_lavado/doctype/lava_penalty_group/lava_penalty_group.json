@@ -24,7 +24,8 @@
   {
    "fieldname": "reset_duration",
    "fieldtype": "Int",
-   "label": "Reset Duration"
+   "label": "Reset Duration",
+   "reqd": 1
   },
   {
    "fieldname": "deduction_rule",
@@ -42,7 +43,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-03 14:56:41.211484",
+ "modified": "2022-11-11 16:48:18.697617",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Penalty Group",
