@@ -1,0 +1,108 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "{employee}-{penalty_record}-{correction_date}",
+ "creation": "2022-11-14 19:25:25.577298",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "penalty_record",
+  "correction_date",
+  "occurrence_number",
+  "penalty_amount",
+  "action_type",
+  "notes",
+  "batch_number",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fieldname": "penalty_record",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Penalty Record",
+   "options": "Lava Penalty Policy Record",
+   "reqd": 1
+  },
+  {
+   "fieldname": "correction_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Correction Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "occurrence_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Occurrence Correction Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "penalty_amount",
+   "fieldtype": "Currency",
+   "label": "Correction Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "action_type",
+   "fieldtype": "Select",
+   "label": "Action Type",
+   "options": "\nAutomatic\nManual"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "batch_number",
+   "fieldtype": "Link",
+   "label": "Batch Number",
+   "options": "Lava Payroll LavaDo"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Lava Penalty Correction Record",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2022-11-14 19:27:25.151656",
+ "modified_by": "Administrator",
+ "module": "Payroll Lavado",
+ "name": "Lava Penalty Correction Record",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

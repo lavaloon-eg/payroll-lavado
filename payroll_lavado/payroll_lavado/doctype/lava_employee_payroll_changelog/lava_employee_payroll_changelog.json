@@ -11,7 +11,8 @@
   "change_date",
   "attendance_plan",
   "designation",
-  "salary_structure_assignment"
+  "salary_structure_assignment",
+  "penalty_policies"
  ],
  "fields": [
   {
@@ -47,11 +48,17 @@
    "fieldtype": "Link",
    "label": "Salary Structure Assignment",
    "options": "Salary Structure Assignment"
+  },
+  {
+   "fieldname": "penalty_policies",
+   "fieldtype": "Table",
+   "label": "Penalty Policies",
+   "options": "Lava Employee Penalty Policy"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-03 15:16:29.660684",
+ "modified": "2022-11-14 19:11:15.559222",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Employee Payroll Changelog",

@@ -14,7 +14,9 @@
   "deduction_amount",
   "activation_date",
   "enabled",
-  "tolerance_duration"
+  "tolerance_duration",
+  "company",
+  "designation"
  ],
  "fields": [
   {
@@ -68,12 +70,27 @@
    "description": "Used in penalties depend on time.",
    "fieldname": "tolerance_duration",
    "fieldtype": "Time",
-   "label": "Tolerance Duration "
+   "label": "Tolerance Duration ",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "reqd": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-03 15:03:41.093554",
+ "modified": "2022-11-14 19:14:19.648540",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Penalty Policy",
