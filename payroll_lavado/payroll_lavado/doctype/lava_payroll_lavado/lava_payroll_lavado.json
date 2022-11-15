@@ -12,7 +12,8 @@
   "start_date",
   "end_date",
   "amended_from",
-  "status"
+  "status",
+  "last_processed_employee"
  ],
  "fields": [
   {
@@ -58,12 +59,19 @@
    "label": "Designation",
    "options": "Designation",
    "reqd": 1
+  },
+  {
+   "fieldname": "last_processed_employee",
+   "fieldtype": "Link",
+   "label": "Last Processed Employee",
+   "options": "Employee",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2022-11-14 19:04:40.411061",
+ "modified": "2022-11-15 14:15:29.134688",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Payroll LavaDo",

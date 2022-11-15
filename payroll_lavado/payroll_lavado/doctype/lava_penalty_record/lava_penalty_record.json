@@ -14,7 +14,7 @@
   "penalty_amount",
   "action_type",
   "notes",
-  "batch_number",
+  "lava_payroll_batch",
   "amended_from"
  ],
  "fields": [
@@ -66,12 +66,6 @@
    "label": "Notes"
   },
   {
-   "fieldname": "batch_number",
-   "fieldtype": "Link",
-   "label": "Batch Number",
-   "options": "Lava Payroll LavaDo"
-  },
-  {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
@@ -79,12 +73,18 @@
    "options": "Lava Penalty Record",
    "print_hide": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "lava_payroll_batch",
+   "fieldtype": "Link",
+   "label": "Batch Number",
+   "options": "Lava Payroll LavaDo"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2022-11-14 19:27:48.976233",
+ "modified": "2022-11-15 15:16:27.800168",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Penalty Record",
