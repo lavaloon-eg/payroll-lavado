@@ -1,32 +1,69 @@
 from datetime import datetime
 from typing import List
-
 import frappe
 from frappe.utils import cint, now
 from frappe.utils.logger import get_logger
 
 
-# time sheet  , timesheet record and additional salary and penaltyrecord should be llinkedwith batch no
+# time sheet  , timesheet record and additional salary and penalty_record should be linked with batch no
 # We can addd a button in shift type screen to run the batch
 # FIXME: ask about the difference between "Last Sync of Checkin" and "Process Attendance After" in the shift type
 # add screen payroll lavado screen
-# -user should select the company
+# - user should select the company
 # - select start date
-# - select end adte
+# - select end date
 
 class PayrollLavaDo:
+    penalty_policy_groups = None
+    penalty_policies = None
+
+    @staticmethod
+    def get_penalty_policy_groups():
+        pass
+        # TODO: clear and then load the list
+
+    @staticmethod
+    def get_penalty_policies():
+        pass
+        # TODO: clear and then load the list and it's sub list of the designations
+
     @staticmethod
     def create_resume_batch(company: str, start_date: datetime, end_date: datetime):
-        PayrollLavaDo.add_action_log(action="Start validate shift types.")
-        shift_types = frappe.get_all("Shift Type", ['name', 'enable_auto_attendance', 'process_attendance_after',
-                                                    'last_sync_of_checkin'])
-        PayrollLavaDo.validate_shift_types(shift_types)
+        # this is the main entry point of the entire batch, and it can be called from a UI screen on desk,
+        # or from a background scheduled job
         batch_id = ""
         last_processed_employee_id = ""
+        PayrollLavaDo.penalty_policy_groups = PayrollLavaDo.get_penalty_policy_groups()
+        PayrollLavaDo.penalty_policies = PayrollLavaDo.get_penalty_policies()
+
+        PayrollLavaDo.add_action_log(action="Start validating shift types.")
+        shift_types = frappe.get_all("Shift Type", ['name', 'enable_auto_attendance', 'process_attendance_after',
+                                                    'last_sync_of_checkin'])
+        try:
+            PayrollLavaDo.validate_shift_types(shift_types)
+        except:
+            PayrollLavaDo.add_action_log(
+                action="Due to the batches validation issue, exit the Batch Process for Company: {}, start date: {}, "
+                       "end date: {}".format(
+                    company,
+                    start_date,
+                    end_date))
+            return
+
+        PayrollLavaDo.create_employees_first_changelog_records(company)
         PayrollLavaDo.add_action_log(
-            action="Check to Start Batch Process for Company: {}, start date: {}, end date: {}".format(company,
-                                                                                                       start_date,
-                                                                                                       end_date))
+            action="Created the first employees changelog records if missing, Batch Process for Company: {}, "
+                   "start date: {}, "
+                   "end date: {}".format(
+                company,
+                start_date,
+                end_date))
+
+        PayrollLavaDo.add_action_log(
+            action="Decide to resume or create a new Batch Process for Company: {}, start date: {}, end date: {}".format(
+                company,
+                start_date,
+                end_date))
         progress_batches = frappe.get_all("Lava Payroll LavaDo", {"status": "In Progress", "company": company},
                                           ['start_date', 'end_date', 'last_processed_employee'])
         if len(progress_batches) > 1:
@@ -74,9 +111,9 @@ class PayrollLavaDo:
         print(now(), action, action_type)
 
     @staticmethod
-    def delete_last_processed_employee_batch_records(employee, batch_no):
+    def delete_last_processed_employee_batch_records(employee, batch_id):
         related_doctypes = ["TimeSheet", "Penalty Policy Record", "Additional Salary"]
-        filters = {"employee": employee, "lava_payroll_batch": batch_no}
+        filters = {"employee": employee, "lava_payroll_batch": batch_id}
 
         # TODO:separate the logic
 
@@ -91,8 +128,9 @@ class PayrollLavaDo:
                 invalid_shift_types.append(shift_type.name)
 
         if invalid_shift_types:
-            frappe.throw(frappe._("Shift types {} are missing data".format(shift_types)))
-            get_logger("Shift types {} have missing data".format(invalid_shift_types))
+            exp_msg = "Shift types {} are missing data".format(shift_types)
+            frappe.throw(frappe._(exp_msg))
+            get_logger(exp_msg)
 
     @staticmethod
     def process_employees(batch_id: str, company: str, start_date: datetime, end_date: datetime,
@@ -104,32 +142,47 @@ class PayrollLavaDo:
                 action="Start process employee: {} for company: {} into batch : {}".format(employee.name, company,
                                                                                            batch_id))
 
-            # TODO: Should we check the salary structure as on that date (upon the employee changelog)
             attendance_list = PayrollLavaDo.get_attendance_list(employee, start_date, end_date)
-            employee_timesheet = PayrollLavaDo.create_resume_employee_timesheet(employee, attendance_list, start_date,
-                                                                                end_date)
+            employee_changelog_records = PayrollLavaDo.get_employee_changelog_records(max_date=end_date,
+                                                                                      employee=employee)
+            employee_timesheet = PayrollLavaDo.create_employee_timesheet(employee=employee, batch_id=batch_id)
 
             for attendance in attendance_list:
-                employee_changelog_record = PayrollLavaDo.get_employee_changelog(
+                # TODO: Should we check the salary structure as on that date (upon the employee changelog)
+                employee_changelog_record = PayrollLavaDo.get_employee_changelog_record(
                     attendance_date=attendance.attendance_date,
-                    employee=employee)
+                    employee_change_log_records=employee_changelog_records)
+                # TODO: handle the exceptions
                 PayrollLavaDo.calc_attendance_working_hours_breakdowns(attendance, employee_changelog_record)
                 PayrollLavaDo.add_timesheet_record(employee_timesheet, attendance.attendance_date, activity_type=None,
-                                                   duration_in_hours=attendance.working_hours)  # TODO:Check if we need to override this field calculation
-                PayrollLavaDo.add_penalties(employee_changelog_record, batch_id, attendance.attendance_date)
+                                                   duration_in_hours=attendance.working_hours)
+                # TODO:Check if we need to override this field (attendance.working_hours) calculation
+                employee_applied_policies = PayrollLavaDo.get_employee_applied_policies(employee_changelog_record['designation'])
+                PayrollLavaDo.add_penalties(employee_changelog_record, batch_id, attendance, employee_applied_policies)
 
                 PayrollLavaDo.add_action_log(
                     action="End process employee: {} for company: {} into batch : {}".format(employee.name, company,
                                                                                              batch_id))
 
     @staticmethod
-    def add_penalties(employee_changelog_record, batch_id, attendance_date):
-        pass #TODO
+    def add_penalties(employee_changelog_record, batch_id, attendance, applied_policies):
+        pass  # TODO
         # for penalty_record in the date for employee :
         #     PayrollLavaDo.add_additional_salary(penalty_record) if needed
         # for penalty_policy related to employee(designation in penalty policy equals designation in the employee_record):
-        #     """adding logic of appying penalty policy"""
+
+        for policy in applied_policies:
+            pass
+        #     adding logic of applying penalty policy
         #     PayrollLavaDo.add_penalty_record(  employee)
+
+    @staticmethod
+    def get_employee_applied_policies(employee_designation):
+        applied_policies = []
+        for policy in PayrollLavaDo.penalty_policies:
+            if policy['designation'] == employee_designation:
+                applied_policies.append(policy)
+        return applied_policies
 
     @staticmethod
     def update_batch(batch_id, employee):
@@ -142,114 +195,62 @@ class PayrollLavaDo:
                               ['*'])  # TODO: specify fields
 
     @staticmethod
-    def get_employee_changelog(attendance_date: datetime, employee: str):
-        employee_last_changelog = frappe.get_all("Lava Employee Payroll Changelog",
-                                                 filters={'employee': employee, 'change_date': ['<=', attendance_date]},
-                                                 order_by="creation desc", fields=['*'], limit=1)
-        return employee_last_changelog
+    def create_employees_first_changelog_records(company: str):
+        pass
+        # TODO: get all employees that don't have changelog records, and then create changelog record for each one as
+        #  per the current data. We can change the employee transfer doctype to enhance the result accuracy
+
+    @staticmethod
+    def get_employee_changelog_records(max_date: datetime, employee: str):
+        employee_changelogs = frappe.get_all("Lava Employee Payroll Changelog",
+                                             filters={'employee': employee, 'change_date': ['<=', max_date]},
+                                             order_by="creation desc", fields=['*'])
+        return employee_changelogs
+
+    @staticmethod
+    def get_employee_changelog_record(attendance_date: datetime, employee_change_log_records):
+        for record in employee_change_log_records:
+            if record['change_date'] <= attendance_date:
+                return record
+        return None
 
     @staticmethod
     def get_company_employees(company, last_processed_employee_id: str = None):
-        # TODO: Handle last processed employee id
+        # TODO: Handle last processed employee id; we may need to use another field like the system creation time if
+        #  timestamped
+        # TODO: pick the needed fields
         employee_list = frappe.get_all("Employee", {'company': company}, order_by='name')
         return employee_list
 
     @staticmethod
     def run_standard_auto_attendance(shift_types: List[dict]):
         for shift_type in shift_types:
-            # TODO: call the standard attendance
+            # TODO: call the standard attendance process
             pass
 
     @staticmethod
-    def create_resume_employee_timesheet(employee, attendance_list, start_date, end_date):
-        pass
-        return {}
+    def create_employee_timesheet(employee, batch_id):
+        timesheet = None
         # TODO:Future enhancement avoid duplications in timesheet creation
-        # if the timesheet exists identical start_Date and end_date for the employee:
-        #     get_timesheet_refrence
-        #     update
-        #     batch in timesheet
-        # else:
-        #     create
-        # for attendance in attendance_list:
-        #     calc_attendance_working_hours_breakdowns(attendance)
-        #
-        #     PayrollLavaDo.add_timesheet_record(attendance)
+        # TODO: create new timesheet record and assign the batch_id
+        return timesheet
+
     @staticmethod
     def calc_attendance_working_hours_breakdowns(attendance):
         pass
-        #TODO
+        # TODO
+
     @staticmethod
     def add_timesheet_record(parent_timesheet, activity_type, date, duration_in_hours):
         pass
-        #TODO
+        # TODO
 
     @staticmethod
     def add_penalty_record(employee):
-        return #TODO
-        # adds penalties records for the employee
+        return  # TODO
+        # adds penalty record for the employee
         # call PayrollLavaDo.add_additional_salary(penalty_record) if needed
 
     @staticmethod
     def add_additional_salary(penalty_record):
-        pass #TODO
-
-
-#*************************** OLD ****************************************#
-# for employee in get_all employees filtered by company and
-# if last_proccessed employee > employee and resuming_abatch and it is the first employee in the new batch:
-#     delete_employee_batch_record(employee,
-#                                  batch_ref)  # delete penalty records and additional salary timesheets linked to penalty record
-# TODO: Should we check the salary structure as on that date (upon the employee changelog)
-#
-# for attendance in employee.get_attendance_list(between start_Date and end_Date ):
-#     employee_record = get
-#     employee
-#     changelog
-#     record(date=most
-#     recent < = record
-#     near
-#     the
-#     attendance.date, employee)
-#     PayrollLavaDo.create_resume_employee_timesheet(employee, attendance_list, start_date, end_date)
-#
-#     calc_attendance_working_hours_breakdowns(attendance)
-#     PayrollLavaDo.add_timesheet_record(timesheet_record, activity_type=hardcoded, date, duration_in_hours="equation")
-#     PayrollLavaDo.add_penalties(employee_record, batch, date)
-# PayrollLavaDo.update_batch(employee)
-#
-# update_batch_status(batch)
-#************************** END OF OLD *****************************************#
-
-def create_timesheet_records(attendance_records):
-    pass
-    # 1 - Group
-    # attendance
-    # records
-    # by
-    # employee
-    # for record in attendance_records:
-        # 2- timesheets = reate time sheet for each employee then append all attendance records as child task in the time sheet.(start time is checkin time , end is checkout) #I think it is redundant
-        # PayrollLavaDo.create_penalty_records(timesheets)
-        # PayrollLavaDo.create_penalty_records(attendance_records)
-
-
-def create_penalty_records(attendance_records):
-    pass
-    # penalty_list = []
-    # for record in attendance_records:
-    #     penalty = create
-    #     penalty_record
-    #     penalty_list.append(penalty)
-    # PayrollLavaDo.create_deductions(penalty_list)
-
-
-def create_deductions(penalty_list):
-    pass
-    # for penalty in penalties:
-    #     get
-    #     total
-    #     deductions
-    #     create
-    #     deduction
-    #     record(salary_additional for the total)
+        pass  # TODO
