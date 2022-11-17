@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List
+
 import frappe
 from frappe.utils import cint, now
 from frappe.utils.logger import get_logger
@@ -23,9 +24,9 @@ class PayrollLavaDo:
         # TODO: clear and then load the list
 
     @staticmethod
-    def get_penalty_policies():
+    def get_penalty_policies(company):
         pass
-        # TODO: clear and then load the list and it's sub list of the designations
+        # TODO: clear and then load the list and it's sub list of the designations filtered by the company
 
     @staticmethod
     def create_resume_batch(company: str, start_date: datetime, end_date: datetime):
@@ -34,7 +35,7 @@ class PayrollLavaDo:
         batch_id = ""
         last_processed_employee_id = ""
         PayrollLavaDo.penalty_policy_groups = PayrollLavaDo.get_penalty_policy_groups()
-        PayrollLavaDo.penalty_policies = PayrollLavaDo.get_penalty_policies()
+        PayrollLavaDo.penalty_policies = PayrollLavaDo.get_penalty_policies(company)
 
         PayrollLavaDo.add_action_log(action="Start validating shift types.")
         shift_types = frappe.get_all("Shift Type", ['name', 'enable_auto_attendance', 'process_attendance_after',
@@ -137,6 +138,7 @@ class PayrollLavaDo:
                           last_processed_employee_id: str = None):
         employees = PayrollLavaDo.get_company_employees(company, last_processed_employee_id)
         for employee in employees:
+            PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="employee", object_id=employee.employee_id, status="In progress", notes="")
             PayrollLavaDo.update_batch(batch_id, employee)
             PayrollLavaDo.add_action_log(
                 action="Start process employee: {} for company: {} into batch : {}".format(employee.name, company,
@@ -157,7 +159,8 @@ class PayrollLavaDo:
                 PayrollLavaDo.add_timesheet_record(employee_timesheet, attendance.attendance_date, activity_type=None,
                                                    duration_in_hours=attendance.working_hours)
                 # TODO:Check if we need to override this field (attendance.working_hours) calculation
-                employee_applied_policies = PayrollLavaDo.get_employee_applied_policies(employee_changelog_record['designation'])
+                employee_applied_policies = PayrollLavaDo.get_employee_applied_policies(
+                    employee_changelog_record['designation'])
                 PayrollLavaDo.add_penalties(employee_changelog_record, batch_id, attendance, employee_applied_policies)
 
                 PayrollLavaDo.add_action_log(
@@ -181,6 +184,7 @@ class PayrollLavaDo:
         applied_policies = []
         for policy in PayrollLavaDo.penalty_policies:
             if policy['designation'] == employee_designation:
+                # FIXME: Policy designation is applied as a child table and should be update getting here
                 applied_policies.append(policy)
         return applied_policies
 
@@ -198,7 +202,9 @@ class PayrollLavaDo:
     def create_employees_first_changelog_records(company: str):
         pass
         # TODO: get all employees that don't have changelog records, and then create changelog record for each one as
-        #  per the current data. We can change the employee transfer doctype to enhance the result accuracy
+        #  per the current data.
+
+        #  TODO: future enhancement: We can change the employee transfer doctype to enhance the result accuracy
 
     @staticmethod
     def get_employee_changelog_records(max_date: datetime, employee: str):
@@ -216,12 +222,19 @@ class PayrollLavaDo:
 
     @staticmethod
     def get_company_employees(company, last_processed_employee_id: str = None):
-        # TODO: Handle last processed employee id; we may need to use another field like the system creation time if
-        #  timestamped
-        # TODO: pick the needed fields
-        employee_list = frappe.get_all("Employee", {'company': company}, order_by='name')
+        employee_list = frappe.db.sql(""" SELECT 
+                            name AS employee_id 
+                        FROM 
+                            `tabEmployee` 
+                        WHERE company=$(company)s 
+                        AND employee.name NOT IN (SELECT employee_name FROM `tabBatch Object` WHERE  object_type = "employee" AND employee.batch_id = "batch_id" AND employee_name != $(last_processed_employee_id)s)""")
+
         return employee_list
 
+
+    @staticmethod
+    def create_batch_object_record(batch_id,object_type, object_id, status=None, notes= None):
+        pass ##TODO: add batch object record
     @staticmethod
     def run_standard_auto_attendance(shift_types: List[dict]):
         for shift_type in shift_types:
@@ -233,15 +246,18 @@ class PayrollLavaDo:
         timesheet = None
         # TODO:Future enhancement avoid duplications in timesheet creation
         # TODO: create new timesheet record and assign the batch_id
+        PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Timesheet",
+                                                 object_id=timesheet.name, status="In progress", notes="")
+
         return timesheet
 
     @staticmethod
-    def calc_attendance_working_hours_breakdowns(attendance):
+    def calc_attendance_working_hours_breakdowns(attendance, employee_changelog_record):
         pass
         # TODO
 
     @staticmethod
-    def add_timesheet_record(parent_timesheet, activity_type, date, duration_in_hours):
+    def add_timesheet_record(employee_timesheet, attendance_date, duration_in_hours, activity_type=None):
         pass
         # TODO
 
