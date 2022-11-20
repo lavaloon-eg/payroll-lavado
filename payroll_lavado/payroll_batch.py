@@ -13,6 +13,7 @@ from frappe.utils.logger import get_logger
 # - user should select the company
 # - select start date
 # - select end date
+# ToDo: change the custom field to be able to contact them
 
 class PayrollLavaDo:
     penalty_policy_groups = None
@@ -22,6 +23,15 @@ class PayrollLavaDo:
     def get_penalty_policy_groups():
         pass
         # TODO: clear and then load the list
+        group_list = frappe.db.sql(""" SELECT 
+                                    name AS employee_id 
+                                FROM 
+                                    `tabPenalty Policy Group` 
+                                WHERE company=$(company)s 
+                                AND employee.name NOT IN (SELECT employee_name FROM `tabBatch Object` WHERE  object_type = "employee" AND employee.batch_id = "batch_id" AND employee_name != $(last_processed_employee_id)s)""")
+
+        group_list = frappe.get_all("Lava Penalty Group")
+        return group_list
 
     @staticmethod
     def get_penalty_policies(company):
@@ -231,10 +241,10 @@ class PayrollLavaDo:
 
         return employee_list
 
-
     @staticmethod
     def create_batch_object_record(batch_id,object_type, object_id, status=None, notes= None):
-        pass ##TODO: add batch object record
+        pass # TODO: add batch object record
+
     @staticmethod
     def run_standard_auto_attendance(shift_types: List[dict]):
         for shift_type in shift_types:
