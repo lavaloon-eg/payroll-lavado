@@ -21,22 +21,42 @@ class PayrollLavaDo:
 
     @staticmethod
     def get_penalty_policy_groups():
-        pass
-        # TODO: clear and then load the list
-        group_list = frappe.db.sql(""" SELECT 
-                                    name AS employee_id 
-                                FROM 
-                                    `tabPenalty Policy Group` 
-                                WHERE company=$(company)s 
-                                AND employee.name NOT IN (SELECT employee_name FROM `tabBatch Object` WHERE  object_type = "employee" AND employee.batch_id = "batch_id" AND employee_name != $(last_processed_employee_id)s)""")
-
-        group_list = frappe.get_all("Lava Penalty Group")
-        return group_list
+        if not PayrollLavaDo.penalty_policy_groups:
+            PayrollLavaDo.penalty_policy_groups.clear()
+        PayrollLavaDo.penalty_policy_groups = frappe.get_all("Lava Penalty Group", order_by='title, sub_group asc')
+        return
 
     @staticmethod
     def get_penalty_policies(company):
-        pass
-        # TODO: clear and then load the list and it's sub list of the designations filtered by the company
+        if not PayrollLavaDo.penalty_policies:
+            PayrollLavaDo.penalty_policies.clear()
+
+        rows = frappe.db.sql(f"""
+                                    SELECT 
+                                        p.name, p.title AS policy_title, p.penalty_group, p.occurrence_number,
+                                        p.penalty_group, p.deduction_in_days, p. deduction_amount, p. activation_date,
+                                        p.tolerance_duration,
+                                        d.name AS designation_name
+                                    FROM 
+                                        `tabLava Penalty Policy` AS p INNER JOIN `tabPolicy Designations` AS d
+                                        ON p.name = d.prent
+                                    WHERE
+                                        p.enabled= 1 AND p.company = {company}
+                                    ORDER BY p.penalty_group, p.name
+                                """)
+        last_parent_policy = None
+        for row in rows:
+            if not last_parent_policy or last_parent_policy.name != row.name:
+                last_parent_policy = PayrollLavaDo.penalty_policies.append(
+                    {'policy_name': row.name,
+                     'policy_title': row.policy_title,
+                     'penalty_group': row.penalty_group,
+                     'deduction_in_days': row.deduction_in_days,
+                     'deduction_amount': row.deduction_amount,
+                     'tolerance_duration': row.tolerance_duration,
+                     'designations': None})
+            else:
+                last_parent_policy.designations.append({'designation_name': row.designation_name})
 
     @staticmethod
     def create_resume_batch(company: str, start_date: datetime, end_date: datetime):
@@ -44,8 +64,8 @@ class PayrollLavaDo:
         # or from a background scheduled job
         batch_id = ""
         last_processed_employee_id = ""
-        PayrollLavaDo.penalty_policy_groups = PayrollLavaDo.get_penalty_policy_groups()
-        PayrollLavaDo.penalty_policies = PayrollLavaDo.get_penalty_policies(company)
+        PayrollLavaDo.get_penalty_policy_groups()
+        PayrollLavaDo.get_penalty_policies(company)
 
         PayrollLavaDo.add_action_log(action="Start validating shift types.")
         shift_types = frappe.get_all("Shift Type", ['name', 'enable_auto_attendance', 'process_attendance_after',
@@ -55,26 +75,18 @@ class PayrollLavaDo:
         except:
             PayrollLavaDo.add_action_log(
                 action="Due to the batches validation issue, exit the Batch Process for Company: {}, start date: {}, "
-                       "end date: {}".format(
-                    company,
-                    start_date,
-                    end_date))
+                       "end date: {}".format(company, start_date, end_date))
             return
 
         PayrollLavaDo.create_employees_first_changelog_records(company)
         PayrollLavaDo.add_action_log(
             action="Created the first employees changelog records if missing, Batch Process for Company: {}, "
                    "start date: {}, "
-                   "end date: {}".format(
-                company,
-                start_date,
-                end_date))
+                   "end date: {}".format(company, start_date, end_date))
 
         PayrollLavaDo.add_action_log(
-            action="Decide to resume or create a new Batch Process for Company: {}, start date: {}, end date: {}".format(
-                company,
-                start_date,
-                end_date))
+            action="Decide to resume or create a new Batch Process for Company: {}, start date: {},"
+                   "end date: {}".format(company, start_date, end_date))
         progress_batches = frappe.get_all("Lava Payroll LavaDo", {"status": "In Progress", "company": company},
                                           ['start_date', 'end_date', 'last_processed_employee'])
         if len(progress_batches) > 1:
@@ -85,7 +97,8 @@ class PayrollLavaDo:
         elif len(progress_batches) == 1:
             if progress_batches[0].start_date != start_date or progress_batches[0].end_date != end_date:
                 exp_msg = frappe._(
-                    "Company {} has  batch {} in progress but with different date range than requested, Please check".format(
+                    "Company {} has  batch {} in progress but with different date range than requested,"
+                    " Please check".format(
                         company, progress_batches[0].name))
                 get_logger(exp_msg)
                 frappe.throw(exp_msg)
@@ -95,8 +108,9 @@ class PayrollLavaDo:
             PayrollLavaDo.add_action_log(action="Resume batch {} for company: {}".format(batch_id, company))
             PayrollLavaDo.delete_last_processed_employee_batch_records(last_processed_employee_id)
             PayrollLavaDo.add_action_log(
-                action="Batch: {} for Company: {} removed the records of employee {}".format(batch_id, company,
-                                                                                             last_processed_employee_id))
+                action="Batch: {} for Company: {} removed the records of"
+                       " employee {}".format(batch_id, company,
+                                             last_processed_employee_id))
 
         if batch_id == "":
             new_batch = frappe.new_doc("Lava Payroll LavaDo")
@@ -117,16 +131,20 @@ class PayrollLavaDo:
         PayrollLavaDo.update_batch_status(batch_id)
 
     @staticmethod
-    def add_action_log(action: str, action_type: str = ""):
-        # TODO: record records to trace actions
+    def add_action_log(action: str, action_type: str = "", notes: str = None):
         print(now(), action, action_type)
+        new_doc = frappe.new_doc("Lava Action Log")
+        new_doc.action = action
+        new_doc.action_type = action_type
+        new_doc.notes = notes
+        new_doc.save(ignore_permissions=True)
 
     @staticmethod
     def delete_last_processed_employee_batch_records(employee, batch_id):
         related_doctypes = ["TimeSheet", "Penalty Policy Record", "Additional Salary"]
         filters = {"employee": employee, "lava_payroll_batch": batch_id}
 
-        # TODO:separate the logic
+        # TODO: use the batch_object table
 
     @staticmethod
     def validate_shift_types(shift_types):
@@ -148,7 +166,8 @@ class PayrollLavaDo:
                           last_processed_employee_id: str = None):
         employees = PayrollLavaDo.get_company_employees(company, last_processed_employee_id)
         for employee in employees:
-            PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="employee", object_id=employee.employee_id, status="In progress", notes="")
+            PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="employee",
+                                                     object_id=employee.employee_id, status="In progress", notes="")
             PayrollLavaDo.update_batch(batch_id, employee)
             PayrollLavaDo.add_action_log(
                 action="Start process employee: {} for company: {} into batch : {}".format(employee.name, company,
@@ -173,29 +192,36 @@ class PayrollLavaDo:
                     employee_changelog_record['designation'])
                 PayrollLavaDo.add_penalties(employee_changelog_record, batch_id, attendance, employee_applied_policies)
 
+                employee_timesheet.save(ignore_permssions=True)
+                PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Timesheet",
+                                                         object_id=employee_timesheet.name,
+                                                         status="In progress", notes="")
+
                 PayrollLavaDo.add_action_log(
                     action="End process employee: {} for company: {} into batch : {}".format(employee.name, company,
                                                                                              batch_id))
 
     @staticmethod
     def add_penalties(employee_changelog_record, batch_id, attendance, applied_policies):
-        pass  # TODO
-        # for penalty_record in the date for employee :
-        #     PayrollLavaDo.add_additional_salary(penalty_record) if needed
-        # for penalty_policy related to employee(designation in penalty policy equals designation in the employee_record):
+        existing_penalty_records = frappe.get_all("Lava Penalty Record",
+                                                  filters={"employee": employee_changelog_record.employee,
+                                                           "penalty_date": ['==', attendance.date]},
+                                                  order_by='modified')
+        for existing_penalty_record in existing_penalty_records:
+            PayrollLavaDo.add_penalty_record(employee_id=employee_changelog_record.employee, batch_id=batch_id)
 
         for policy in applied_policies:
-            pass
-        #     adding logic of applying penalty policy
-        #     PayrollLavaDo.add_penalty_record(  employee)
+            pass  # TODO: add logic of applying penalty policy
+        return
 
     @staticmethod
     def get_employee_applied_policies(employee_designation):
         applied_policies = []
         for policy in PayrollLavaDo.penalty_policies:
-            if policy['designation'] == employee_designation:
-                # FIXME: Policy designation is applied as a child table and should be update getting here
-                applied_policies.append(policy)
+            for designation in policy.designations:
+                if designation.name == employee_designation:
+                    applied_policies.append(policy)
+                    break
         return applied_policies
 
     @staticmethod
@@ -210,17 +236,42 @@ class PayrollLavaDo:
 
     @staticmethod
     def create_employees_first_changelog_records(company: str):
-        pass
-        # TODO: get all employees that don't have changelog records, and then create changelog record for each one as
-        #  per the current data.
-
         #  TODO: future enhancement: We can change the employee transfer doctype to enhance the result accuracy
+        rows = frappe.db.sql(f"""
+                                          SELECT 
+                                              e.name AS employee_id,e.designation, e.attendance_plan,
+                                              ssa.name AS salary_structure_assignment,
+                                              e.modified AS last_modified_date
+                                          FROM 
+                                              `tabEmployee` AS e LEFT JOIN `tabSalary Structure Assignment` ssa
+                                              ON e.name = ssa.employee and ssa.company ={company}
+                                          WHERE
+                                              e.company = {company}
+                                              AND e.name NOT IN
+                                              (
+                                                SELECT Employee from `tabLava Employee Payroll Changelog`
+                                              )
+                                      """)
+        for row in rows:
+            if row.designation is None or row.salary_structure_assignment is None:
+                exp_msg = "Employee {} doesn't have designation and/or salary " \
+                          "structure assignment".format(row.employee_id)
+                frappe.throw(frappe._(exp_msg))
+                get_logger(exp_msg)
+            else:
+                employee_change_log_record = frappe.new_doc('Lava Employee Payroll Changelog')
+                employee_change_log_record.employee = row.employee_id
+                employee_change_log_record.change_date = row.last_modified_date
+                employee_change_log_record.designation = row.designation
+                employee_change_log_record.attendance_plan = row.attendance_plan
+                employee_change_log_record.salary_structure_assignment = row.salary_structure_assignment
+                employee_change_log_record.save(ignore_permissions=True)
 
     @staticmethod
     def get_employee_changelog_records(max_date: datetime, employee: str):
         employee_changelogs = frappe.get_all("Lava Employee Payroll Changelog",
                                              filters={'employee': employee, 'change_date': ['<=', max_date]},
-                                             order_by="creation desc", fields=['*'])
+                                             order_by="modified desc", fields=['*'])
         return employee_changelogs
 
     @staticmethod
@@ -232,18 +283,30 @@ class PayrollLavaDo:
 
     @staticmethod
     def get_company_employees(company, last_processed_employee_id: str = None):
-        employee_list = frappe.db.sql(""" SELECT 
+        employee_list = frappe.db.sql(f""" 
+                        SELECT 
                             name AS employee_id 
                         FROM 
                             `tabEmployee` 
-                        WHERE company=$(company)s 
-                        AND employee.name NOT IN (SELECT employee_name FROM `tabBatch Object` WHERE  object_type = "employee" AND employee.batch_id = "batch_id" AND employee_name != $(last_processed_employee_id)s)""")
+                        WHERE company={company}
+                        AND employee.name NOT IN 
+                            (SELECT employee_name 
+                            FROM `tabBatch Object` 
+                            WHERE  object_type = "employee" 
+                                AND employee.batch_id = "batch_id" 
+                                AND employee_name != {last_processed_employee_id})""")
 
         return employee_list
 
     @staticmethod
-    def create_batch_object_record(batch_id,object_type, object_id, status=None, notes= None):
-        pass # TODO: add batch object record
+    def create_batch_object_record(batch_id, object_type, object_id, status=None, notes=None):
+        batch_object_record = frappe.new_doc("Lava Batch Object")
+        batch_object_record.batch_id = batch_id
+        batch_object_record.object_type = object_type
+        batch_object_record.object_id = object_id
+        batch_object_record.status = status
+        batch_object_record.notes = notes
+        batch_object_record.save(ignore_permissions=True)
 
     @staticmethod
     def run_standard_auto_attendance(shift_types: List[dict]):
@@ -253,30 +316,47 @@ class PayrollLavaDo:
 
     @staticmethod
     def create_employee_timesheet(employee, batch_id):
-        timesheet = None
+        timesheet = frappe.new_doc('Timesheet')
         # TODO:Future enhancement avoid duplications in timesheet creation
-        # TODO: create new timesheet record and assign the batch_id
-        PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Timesheet",
-                                                 object_id=timesheet.name, status="In progress", notes="")
-
+        timesheet.employee = employee.name
+        timesheet.company = employee.company
         return timesheet
 
     @staticmethod
     def calc_attendance_working_hours_breakdowns(attendance, employee_changelog_record):
-        pass
-        # TODO
+        # TODO: check if we need to replace the field attendance.working_hours
+        # TODO: fulfill the custom fields of time breakdown
+        # attendance.late_checkin_duration =
+        # attendance.early_checkout_duration =
+        attendance.save(ignore_permissions=True)
 
     @staticmethod
     def add_timesheet_record(employee_timesheet, attendance_date, duration_in_hours, activity_type=None):
-        pass
-        # TODO
+        # FIXME: check fields
+        # TODO: add default activity type if None
+        employee_timesheet.append("time_logs", {
+            "activity_type": activity_type,
+            "hours": duration_in_hours,
+            "from_time": attendance_date  # TODO: future enhancement: add first checkin time
+        })
 
     @staticmethod
-    def add_penalty_record(employee):
-        return  # TODO
-        # adds penalty record for the employee
-        # call PayrollLavaDo.add_additional_salary(penalty_record) if needed
+    def add_penalty_record(employee_id, batch_id):
+        penalty_record = frappe.new_doc("Lava Penalty Record")
+        penalty_record.save(ignore_permissions=True)
+        # TODO: add the fields
+        PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Lava Penalty Record",
+                                                 object_id=penalty_record.name,
+                                                 status="Created", notes="")
+
+        # TODO: if statement if additional salary record needs to be added
+        PayrollLavaDo.add_additional_salary(penalty_record, batch_id)
 
     @staticmethod
-    def add_additional_salary(penalty_record):
-        pass  # TODO
+    def add_additional_salary(penalty_record, batch_id):
+        # TODO: add the fields
+        additional_salary_record = frappe.new_doc("Additional Salary")
+        additional_salary_record.save(ignore_permissions=True)
+        PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Additional Salary",
+                                                 object_id=additional_salary_record.name,
+                                                 status="Created", notes="")

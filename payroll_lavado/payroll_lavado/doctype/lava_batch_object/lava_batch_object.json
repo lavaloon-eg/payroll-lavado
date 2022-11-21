@@ -1,28 +1,45 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2022-11-19 18:44:45.183474",
+ "creation": "2022-11-21 23:22:18.175302",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "action",
-  "action_type",
+  "batch_id",
+  "object_id",
+  "object_type",
+  "status",
   "notes"
  ],
  "fields": [
   {
-   "fieldname": "action",
-   "fieldtype": "Data",
+   "fieldname": "batch_id",
+   "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Action",
+   "label": "Batch ID",
+   "options": "Lava Payroll LavaDo",
    "reqd": 1
   },
   {
-   "fieldname": "action_type",
+   "fieldname": "object_id",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Action Type",
+   "label": "Object ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "object_type",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Object Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Status",
    "reqd": 1
   },
   {
@@ -33,11 +50,10 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-20 11:47:47.451781",
+ "modified": "2022-11-21 23:22:18.175302",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
- "name": "Lava Action Log",
- "name_case": "UPPER CASE",
+ "name": "Lava Batch Object",
  "owner": "Administrator",
  "permissions": [
   {
@@ -53,7 +69,6 @@
    "write": 1
   }
  ],
- "quick_entry": 1,
  "sort_field": "modified",
  "sort_order": "DESC"
 }

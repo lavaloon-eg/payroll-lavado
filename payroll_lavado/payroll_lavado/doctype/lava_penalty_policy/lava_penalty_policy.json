@@ -10,13 +10,12 @@
   "title",
   "penalty_group",
   "occurrence_number",
-  "deduction",
+  "deduction_in_days",
   "deduction_amount",
-  "activation_date",
   "enabled",
   "tolerance_duration",
   "company",
-  "designation"
+  "designations"
  ],
  "fields": [
   {
@@ -43,28 +42,17 @@
    "reqd": 1
   },
   {
-   "fieldname": "deduction",
-   "fieldtype": "Int",
-   "label": "Deduction (In days)",
-   "reqd": 1
-  },
-  {
    "fieldname": "deduction_amount",
    "fieldtype": "Currency",
    "label": "Deduction Amount",
    "reqd": 1
   },
   {
-   "fieldname": "activation_date",
-   "fieldtype": "Date",
-   "label": "Activation Date",
-   "reqd": 1
-  },
-  {
    "default": "0",
    "fieldname": "enabled",
    "fieldtype": "Check",
-   "label": "Enabled"
+   "label": "Enabled",
+   "reqd": 1
   },
   {
    "description": "Used in penalties depend on time.",
@@ -81,16 +69,22 @@
    "reqd": 1
   },
   {
-   "fieldname": "designation",
-   "fieldtype": "Link",
-   "label": "Designation",
-   "options": "Designation",
+   "fieldname": "deduction_in_days",
+   "fieldtype": "Int",
+   "label": "Deduction (In days)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "designations",
+   "fieldtype": "Table",
+   "label": "Designations",
+   "options": "Policy Designations",
    "reqd": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-14 19:14:19.648540",
+ "modified": "2022-11-21 21:45:13.991602",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Penalty Policy",

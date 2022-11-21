@@ -1,0 +1,27 @@
+{
+ "content": null,
+ "creation": "2022-11-21 07:23:31.972737",
+ "docstatus": 0,
+ "doctype": "Page",
+ "icon": "",
+ "idx": 0,
+ "modified": "2022-11-21 07:28:50.587982",
+ "modified_by": "Administrator",
+ "module": "Payroll Lavado",
+ "name": "payroll-lavado-batch",
+ "owner": "Administrator",
+ "page_name": "payroll-lavado-batch",
+ "roles": [
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Payroll LavaDo Batch"
+}
