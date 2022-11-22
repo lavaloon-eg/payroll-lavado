@@ -212,7 +212,8 @@ class PayrollLavaDo:
                                                            "penalty_date": ['=', attendance.date]},
                                                   order_by='modified')
         for existing_penalty_record in existing_penalty_records:
-            PayrollLavaDo.add_penalty_record(employee_id=employee_changelog_record.employee, batch_id=batch_id, existing_penalty_record)
+            PayrollLavaDo.add_penalty_record(employee_id=employee_changelog_record.employee, batch_id=batch_id,
+                                             existing_penalty_record=existing_penalty_record)
 
         for policy in applied_policies:
             pass  # TODO: add logic of applying penalty policy
@@ -341,15 +342,15 @@ class PayrollLavaDo:
         })
 
     @staticmethod
-    def add_penalty_record(employee_id, batch_id,existing_penalty_record):
+    def add_penalty_record(employee_id, batch_id, existing_penalty_record):
         penalty_record = existing_penalty_record
         if not penalty_record:
             penalty_record = frappe.new_doc("Lava Penalty Record")
             penalty_record.save(ignore_permissions=True)
             # TODO: add the fields
             PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Lava Penalty Record",
-                                                 object_id=penalty_record.name,
-                                                 status="Created", notes="")
+                                                     object_id=penalty_record.name,
+                                                     status="Created", notes="")
 
         # TODO: if statement if additional salary record needs to be added
         PayrollLavaDo.add_additional_salary(penalty_record, batch_id)
