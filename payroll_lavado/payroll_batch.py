@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 import frappe
 from frappe.utils import cint, now
@@ -141,15 +141,19 @@ class PayrollLavaDo:
 
     @staticmethod
     def get_batch_last_processed_employee_id(batch_id):
-        return ""
-        # TODO: Return employee from the last object record for this batch
+        employee_id = frappe.get_value('Lava Batch Object', {"batch_id": batch_id, "object_type": 'employee'},
+                                       ['object_id'])
+        return employee_id
 
     @staticmethod
-    def delete_last_processed_employee_batch_records(employee, batch_id):
-        related_doctypes = ["TimeSheet", "Penalty Policy Record", "Additional Salary"]
-        filters = {"employee": employee, "lava_payroll_batch": batch_id}
+    def delete_last_processed_employee_batch_records(employee: str, batch_id: str):
+        batch_related_doctypes = ["TimeSheet", "Penalty Policy Record", "Additional Salary"]
+        employee_batch_records_ids = frappe.get_all("Lava Batch Object",
+                                                    {'object_type': ['in', batch_related_doctypes]},
+                                                    ['object_type', 'object_id'])
 
-        # TODO: use the batch_object table
+        for record in employee_batch_records_ids:
+            frappe.delete_doc(doctype=record.object_type, name=record.object_id, force=1)
 
     @staticmethod
     def validate_shift_types(shift_types):
@@ -233,7 +237,9 @@ class PayrollLavaDo:
     def get_attendance_list(employee: str, start_date: datetime, end_date: datetime):
         return frappe.get_all("Attendance",
                               {'employee': employee, 'attendance_date': ['between', [start_date, end_date]]},
-                              ['*'])  # TODO: specify fields
+                              ['attendance_date', 'working_hours', 'lava_entry_duration_difference',
+                               'lava_exit_duration_difference',
+                               'lava_net_working_hours', 'lava_planned_working_hours'])  # TODO: specify fields
 
     @staticmethod
     def create_employees_first_changelog_records(company: str):
@@ -310,10 +316,11 @@ class PayrollLavaDo:
         batch_object_record.save(ignore_permissions=True)
 
     @staticmethod
-    def run_standard_auto_attendance(shift_types: List[frappe._dict]):
+    def run_standard_auto_attendance(shift_types: List[dict]):
         for shift_type in shift_types:
-            shift_type.process_auto_attendance()  # TODO
-            # TODO: call the standard attendance process
+            shift_doc = frappe.get_doc('Shift Type', shift_type.name)
+            shift_doc.process_auto_attendance()
+            frappe.db.commit()
 
     @staticmethod
     def create_employee_timesheet(employee, batch_id):
@@ -367,3 +374,10 @@ class PayrollLavaDo:
     @staticmethod
     def update_batch_status(batch_id: str, status: str):
         frappe.set_value("Lava Payroll LavaDo", batch_id, "status", status)
+
+
+def run_batch():
+    shift_types = frappe.get_all("Shift Type")
+    for shift_type in shift_types:
+        shift_type.process_auto_attendance()
+        frappe.db.commit()
