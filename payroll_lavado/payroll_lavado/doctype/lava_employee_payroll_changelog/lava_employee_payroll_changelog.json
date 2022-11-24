@@ -8,8 +8,10 @@
  "engine": "InnoDB",
  "field_order": [
   "employee",
+  "company",
+  "branch",
+  "shift_type",
   "change_date",
-  "attendance_plan",
   "designation",
   "salary_structure_assignment"
  ],
@@ -30,12 +32,6 @@
    "reqd": 1
   },
   {
-   "fieldname": "attendance_plan",
-   "fieldtype": "Link",
-   "label": "Attendance Plan",
-   "options": "Attendance Plan"
-  },
-  {
    "fetch_from": "employee.designation",
    "fieldname": "designation",
    "fieldtype": "Link",
@@ -47,11 +43,29 @@
    "fieldtype": "Link",
    "label": "Salary Structure Assignment",
    "options": "Salary Structure Assignment"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "shift_type",
+   "fieldtype": "Link",
+   "label": "Shift Type",
+   "options": "Shift Type"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-15 16:38:03.566763",
+ "modified": "2022-11-24 16:00:04.023016",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Employee Payroll Changelog",
