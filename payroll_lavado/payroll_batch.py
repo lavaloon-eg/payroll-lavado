@@ -265,7 +265,7 @@ class PayrollLavaDo:
                                                 ON sha.status = 'Active' 
                                                 AND sha.employee = e.name 
                                                 AND sha.company = e.company
-                                                AND GET_DATE() BETWEEN sha.start_date, sha.end_date 
+                                                AND GETDATE() BETWEEN sha.start_date, sha.end_date 
                                           WHERE
                                               e.company = {company}
                                               AND e.name NOT IN
