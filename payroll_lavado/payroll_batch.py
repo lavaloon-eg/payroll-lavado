@@ -376,8 +376,3 @@ class PayrollLavaDo:
         frappe.set_value("Lava Payroll LavaDo", batch_id, "status", status)
 
 
-def run_batch():
-    shift_types = frappe.get_all("Shift Type")
-    for shift_type in shift_types:
-        shift_type.process_auto_attendance()
-        frappe.db.commit()
