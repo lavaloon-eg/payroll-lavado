@@ -225,9 +225,56 @@ class PayrollLavaDo:
             PayrollLavaDo.add_penalty_record(employee_id=employee_changelog_record.employee, batch_id=batch_id,
                                              existing_penalty_record=existing_penalty_record)
 
+        occurred_attendance_checkin_policy = None
+        occurred_attendance_checkout_policy = None
+
         for policy in applied_policies:
-            pass  # TODO: add logic of applying penalty policy
-        return
+            # the policies are sorted by group, and subgroup, and then the duration tolerance desc
+            # FIXME: consider the occurrence number to pick the right policy
+            if policy.group == 'attendance' and policy.sub_group == 'attendance check-in':
+                if attendance.late_checkin_duration > policy.duration_tolerance:
+                    occurred_attendance_checkin_policy = policy
+            elif policy.group == 'attendance' and policy.sub_group == 'attendance check-out':
+                if attendance.late_checkout_duration > policy.duration_tolerance:
+                    occurred_attendance_checkout_policy = policy
+
+        if occurred_attendance_checkin_policy:
+            policy_occurance_number = PayrollLavaDo.get_penalty_records_number_within_duration(
+                employee=employee_changelog_record.employee,
+                check_date=attendance.date,
+                duration_in_days=occurred_attendance_checkin_policy.reset_duration,
+                policy_subgroup="attendance check-in") + 1
+            # FIXME: consider the correction records
+            PayrollLavaDo.add_penalty_record(employee_changelog_record=employee_changelog_record,
+                                             batch_id=batch_id,
+                                             policy=occurred_attendance_checkin_policy,
+                                             occurance_number=policy_occurance_number,
+                                             existing_penalty_record=None)
+
+        if occurred_attendance_checkout_policy:
+            policy_occurance_number = PayrollLavaDo.get_penalty_records_number_within_duration(
+                employee=employee_changelog_record.employee,
+                check_date=attendance.date,
+                duration_in_days=occurred_attendance_checkout_policy.reset_duration,
+                policy_subgroup="attendance check-out") + 1
+            # FIXME: consider the correction records
+            PayrollLavaDo.add_penalty_record(employee_changelog_record=employee_changelog_record,
+                                             batch_id=batch_id,
+                                             policy=occurred_attendance_checkout_policy,
+                                             occurance_number=policy_occurance_number,
+                                             existing_penalty_record=None)
+
+    @staticmethod
+    def get_penalty_records_number_within_duration(employee, check_date, duration_in_days, policy_subgroup):
+        from_date = datetime.datetime.strptime(check_date, "%m/%d/%y") - datetime.timedelta(days=duration_in_days)
+        penalty_records_number_within_duration = frappe.get_all("Lava Penalty Record",
+                                                                filters={
+                                                                    "employee": employee,
+                                                                    "penalty_date": ['>=', from_date],
+                                                                    "policy_subgroup": policy_subgroup
+                                                                },
+                                                                order_by='penalty_date')
+        return len(penalty_records_number_within_duration)
 
     @staticmethod
     def get_employee_applied_policies(employee_designation):
@@ -366,18 +413,41 @@ class PayrollLavaDo:
         })
 
     @staticmethod
-    def add_penalty_record(employee_id, batch_id, existing_penalty_record):
+    def add_penalty_record(employee_changelog_record, batch_id, policy, occurance_number, existing_penalty_record):
         penalty_record = existing_penalty_record
         if not penalty_record:
             penalty_record = frappe.new_doc("Lava Penalty Record")
-            penalty_record.save(ignore_permissions=True)
-            # TODO: add the fields
-            PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Lava Penalty Record",
-                                                     object_id=penalty_record.name,
-                                                     status="Created", notes="")
 
-        # TODO: if statement if additional salary record needs to be added
-        PayrollLavaDo.add_additional_salary(penalty_record, batch_id)
+        deduction_in_days_amount = employee_changelog_record.hourly_rate * policy.deduction_in_days
+        deduction_absolute_amount = policy.absolute_amount
+        applied_penalty_deduction_amount = 0
+
+        if policy.group.penalty_rule == "biggest":
+            if deduction_absolute_amount > deduction_in_days_amount:
+                applied_penalty_deduction_amount = deduction_absolute_amount
+            else:
+                applied_penalty_deduction_amount = deduction_in_days_amount
+        elif policy.group.penalty_rule == "smallest":
+            if deduction_absolute_amount < deduction_in_days_amount:
+                applied_penalty_deduction_amount = deduction_absolute_amount
+            else:
+                deduction_absolute__amount = deduction_in_days_amount
+        elif policy.group.penalty_rule == "absolute amount":
+            applied_penalty_deduction_amount = deduction_absolute_amount
+        elif policy.group.penalty_rule == "deduction in days":
+            applied_penalty_deduction_amount = deduction_in_days_amount
+        else:
+            applied_penalty_deduction_amount = 0
+            # TODO: log error
+
+        # TODO: add the fields, including the applied_penalty_deduction_amount
+        penalty_record.save(ignore_permissions=True)
+
+        PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Lava Penalty Record",
+                                                 object_id=penalty_record.name,
+                                                 status="Created", notes="")
+        if applied_penalty_deduction_amount > 0:
+            PayrollLavaDo.add_additional_salary(penalty_record, batch_id)
 
     @staticmethod
     def add_additional_salary(penalty_record, batch_id):
@@ -391,4 +461,3 @@ class PayrollLavaDo:
     @staticmethod
     def update_batch_status(batch_id: str, status: str):
         frappe.set_value("Lava Payroll LavaDo", batch_id, "status", status)
-
