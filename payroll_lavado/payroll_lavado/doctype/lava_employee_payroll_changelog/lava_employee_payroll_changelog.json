@@ -13,7 +13,8 @@
   "shift_type",
   "change_date",
   "designation",
-  "salary_structure_assignment"
+  "salary_structure_assignment",
+  "hourly_rate"
  ],
  "fields": [
   {
@@ -36,7 +37,8 @@
    "fieldname": "designation",
    "fieldtype": "Link",
    "label": "Designation",
-   "options": "Designation"
+   "options": "Designation",
+   "reqd": 1
   },
   {
    "fieldname": "salary_structure_assignment",
@@ -48,7 +50,8 @@
    "fieldname": "company",
    "fieldtype": "Link",
    "label": "Company",
-   "options": "Company"
+   "options": "Company",
+   "reqd": 1
   },
   {
    "fieldname": "branch",
@@ -60,12 +63,18 @@
    "fieldname": "shift_type",
    "fieldtype": "Link",
    "label": "Shift Type",
-   "options": "Shift Type"
+   "options": "Shift Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "hourly_rate",
+   "fieldtype": "Float",
+   "label": "Hourly Rate"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-24 16:00:04.023016",
+ "modified": "2022-11-30 08:20:21.125733",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Employee Payroll Changelog",

@@ -15,7 +15,8 @@
   "enabled",
   "tolerance_duration",
   "company",
-  "designations"
+  "designations",
+  "penalty_subgroup"
  ],
  "fields": [
   {
@@ -80,11 +81,17 @@
    "label": "Designations",
    "options": "Policy Designations",
    "reqd": 1
+  },
+  {
+   "fieldname": "penalty_subgroup",
+   "fieldtype": "Select",
+   "label": "Penalty Subgroup",
+   "options": "attendance check-out\nattendance check-in"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-21 21:45:13.991602",
+ "modified": "2022-11-30 08:29:04.297185",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Penalty Policy",

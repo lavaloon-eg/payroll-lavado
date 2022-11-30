@@ -6,16 +6,15 @@ import frappe
 from frappe.utils import cint, now
 from frappe.utils.logger import get_logger
 
-
-# TODO: Add company in employee changelog as the employee could be transferred from company to another.
-# TODO: Add hook on employee & salary structure assignment on save event : create employee chengelog record with the new data
+# TODO: Add hook on employee & salary structure assignment on save event :
+#  create employee chengelog record with the new data
 # TODO: Check if the employee transfer updates the employee record; then no need to ad hook into employee transfer too
 # TODO: add screen payroll lavado screen
 # TODO: Handle attendance hook to calculate late entry&early exit
 # - user should select the company
 # - select start date
 # - select end date
-# ToDo: change the custom field to be able to contact them
+# ToDo: change the custom field to be able to contact them. Khaled: not clear!
 
 class PayrollLavaDo:
     penalty_policy_groups = None
@@ -26,7 +25,7 @@ class PayrollLavaDo:
     def get_penalty_policy_groups():
         if PayrollLavaDo.penalty_policy_groups:
             PayrollLavaDo.penalty_policy_groups.clear()
-        PayrollLavaDo.penalty_policy_groups = frappe.get_all("Lava Penalty Group", order_by='title, sub_group asc')
+        PayrollLavaDo.penalty_policy_groups = frappe.get_all("Lava Penalty Group", order_by='title')
         return
 
     @staticmethod
@@ -37,11 +36,12 @@ class PayrollLavaDo:
                                     SELECT 
                                         p.name, p.title AS policy_title, p.penalty_group, p.occurrence_number,
                                         p.penalty_group, p.deduction_in_days, p. deduction_amount, p. activation_date,
+                                        p.penalty_subgroup,
                                         p.tolerance_duration,
                                         d.name AS designation_name
                                     FROM 
                                         `tabLava Penalty Policy` AS p INNER JOIN `tabPolicy Designations` AS d
-                                        ON p.name = d.prent
+                                        ON p.name = d.parent
                                     WHERE
                                         p.enabled= 1 AND p.company = {company}
                                     ORDER BY p.penalty_group, p.name
@@ -231,10 +231,10 @@ class PayrollLavaDo:
         for policy in applied_policies:
             # the policies are sorted by group, and subgroup, and then the duration tolerance desc
             # FIXME: consider the occurrence number to pick the right policy
-            if policy.group == 'attendance' and policy.sub_group == 'attendance check-in':
+            if policy.group == 'attendance' and policy.penalty_subgroup == 'attendance check-in':
                 if attendance.late_checkin_duration > policy.duration_tolerance:
                     occurred_attendance_checkin_policy = policy
-            elif policy.group == 'attendance' and policy.sub_group == 'attendance check-out':
+            elif policy.group == 'attendance' and policy.penalty_subgroup == 'attendance check-out':
                 if attendance.late_checkout_duration > policy.duration_tolerance:
                     occurred_attendance_checkout_policy = policy
 
@@ -302,8 +302,10 @@ class PayrollLavaDo:
         rows = frappe.db.sql(f"""
                                           SELECT 
                                               e.name AS employee_id,e.designation, e.company As employee_company,
-                                              ssa.name AS salary_structure_assignment, ssa.from_date AS salary_structure_assignment_from_date
-                                              e.modified AS last_modified_date, e.default_shift AS employee_default_shift
+                                              ssa.name AS salary_structure_assignment,
+                                               ssa.from_date AS salary_structure_assignment_from_date,
+                                              e.modified AS last_modified_date,
+                                               e.default_shift AS employee_default_shift,
                                               sha.shift_type AS shift_assignment_shift_type
                                           FROM 
                                               `tabEmployee` AS e INNER JOIN `tabSalary Structure Assignment` ssa
@@ -312,7 +314,9 @@ class PayrollLavaDo:
                                                 ON sha.status = 'Active' 
                                                 AND sha.employee = e.name 
                                                 AND sha.company = e.company
-                                                AND GETDATE() BETWEEN sha.start_date, sha.end_date 
+                                                AND GETDATE() BETWEEN sha.start_date, sha.end_date
+                                            INNER JOIN `tabSalary Structure` AS ss
+                                                ON sha.salary_structure = ss.name AND ss.company = ={company}
                                           WHERE
                                               e.company = {company}
                                               AND e.name NOT IN

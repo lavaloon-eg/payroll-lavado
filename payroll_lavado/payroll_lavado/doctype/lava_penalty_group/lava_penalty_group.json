@@ -9,8 +9,7 @@
  "field_order": [
   "title",
   "reset_duration",
-  "deduction_rule",
-  "sub_group"
+  "deduction_rule"
  ],
  "fields": [
   {
@@ -33,17 +32,11 @@
    "label": "Deduction Rule",
    "options": "Lava Deduction Rule",
    "reqd": 1
-  },
-  {
-   "fieldname": "sub_group",
-   "fieldtype": "Link",
-   "label": "Sub Group",
-   "options": "Lava Penalty Sub Group"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-11 16:48:18.697617",
+ "modified": "2022-11-30 08:24:27.766939",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Penalty Group",
