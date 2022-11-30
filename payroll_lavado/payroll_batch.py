@@ -15,6 +15,7 @@ from frappe.utils.logger import get_logger
 # - select start date
 # - select end date
 # ToDo: change the custom field to be able to contact them. Khaled: not clear!
+# TODO: change the deduction rule to be "select" type, not lookup doctype.
 
 class PayrollLavaDo:
     penalty_policy_groups = None
