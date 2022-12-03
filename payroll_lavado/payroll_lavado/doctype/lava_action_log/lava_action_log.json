@@ -13,7 +13,7 @@
  "fields": [
   {
    "fieldname": "action",
-   "fieldtype": "Data",
+   "fieldtype": "Text",
    "in_list_view": 1,
    "label": "Action",
    "reqd": 1
@@ -33,7 +33,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-20 11:47:47.451781",
+ "modified": "2022-12-03 15:54:12.776147",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Action Log",

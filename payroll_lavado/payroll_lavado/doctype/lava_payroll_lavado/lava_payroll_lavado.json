@@ -1,5 +1,11 @@
 {
- "actions": [],
+ "actions": [
+  {
+   "action": "payroll_lavado.payroll_batch.run_payroll_lavado_batch",
+   "action_type": "Server Action",
+   "label": "Run Batch"
+  }
+ ],
  "allow_rename": 1,
  "autoname": "format:{company}-{YYYY}-{MM}-{DD}",
  "creation": "2022-11-14 18:02:31.461791",
@@ -71,7 +77,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2022-11-15 14:15:29.134688",
+ "modified": "2022-12-03 15:31:54.099996",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Payroll LavaDo",
