@@ -7,7 +7,7 @@
   }
  ],
  "allow_rename": 1,
- "autoname": "format:{company}-{YYYY}-{MM}-{DD}",
+ "autoname": "format:{YYYY}-{MM}-{DD}-{mm}-{SS}",
  "creation": "2022-11-14 18:02:31.461791",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -48,7 +48,7 @@
    "fieldtype": "Link",
    "label": "Amended From",
    "no_copy": 1,
-   "options": "Lava Payroll LavaDo",
+   "options": "Lava Payroll LavaDo Batch",
    "print_hide": 1,
    "read_only": 1
   },
@@ -69,10 +69,10 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2022-12-04 14:34:33.479389",
+ "modified": "2022-12-04 14:46:21.180324",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
- "name": "Lava Payroll LavaDo",
+ "name": "Lava Payroll LavaDo Batch",
  "owner": "Administrator",
  "permissions": [
   {

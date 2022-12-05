@@ -78,13 +78,13 @@
    "fieldname": "lava_payroll_batch",
    "fieldtype": "Link",
    "label": "Batch Number",
-   "options": "Lava Payroll LavaDo"
+   "options": "Lava Payroll LavaDo Batch"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2022-11-15 15:16:27.800168",
+ "modified": "2022-12-04 14:36:30.146460",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Penalty Record",

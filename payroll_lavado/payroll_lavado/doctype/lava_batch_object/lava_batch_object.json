@@ -18,7 +18,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Batch ID",
-   "options": "Lava Payroll LavaDo",
+   "options": "Lava Payroll LavaDo Batch",
    "reqd": 1
   },
   {
@@ -50,7 +50,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-21 23:22:18.175302",
+ "modified": "2022-12-04 14:36:29.481972",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Batch Object",

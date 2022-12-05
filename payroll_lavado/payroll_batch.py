@@ -3,7 +3,7 @@ from datetime import date
 from typing import List
 
 import frappe
-from frappe.utils import cint, now, time_diff_in_hours, getdate
+from frappe.utils import now, time_diff_in_hours, getdate
 from frappe.utils.logger import get_logger
 
 
@@ -43,8 +43,12 @@ class PayrollLavaDo:
 
         for shift_type in shift_types:
             if shift_type.name == shift_type_id:
-                return shift_type_id
+                return PayrollLavaDo.get_shift_type_doc(shift_type_id)
         return None
+
+    @staticmethod
+    def get_shift_type_doc(shift_type_id):
+        return frappe.get_doc('Shift Type', shift_type_id)
 
     @staticmethod
     def get_policy_by_id(policy_id, policies=None):
@@ -141,8 +145,8 @@ class PayrollLavaDo:
         PayrollLavaDo.add_action_log(
             action="Decide to resume or create a new Batch Process for Company: {}, start date: {},"
                    "end date: {}".format(company, start_date, end_date))
-        progress_batches = frappe.get_all("Lava Payroll LavaDo", {"status": "In Progress", "company": company},
-                                          ['start_date', 'end_date'])
+        progress_batches = frappe.get_all("Lava Payroll LavaDo Batch", {"status": "In Progress", "company": company},
+                                          ['name', 'start_date', 'end_date'])
         if len(progress_batches) > 1:
             exp_msg = frappe._("Company {} has more than a batch in progress, Please check".format(company))
             get_logger(exp_msg)
@@ -156,22 +160,23 @@ class PayrollLavaDo:
                         company, progress_batches[0].name))
                 get_logger(exp_msg)
                 frappe.throw(exp_msg)
-        else:
-            batch_id = progress_batches[0].name
-            last_processed_employee_id = PayrollLavaDo.get_batch_last_processed_employee_id(batch_id)
-            PayrollLavaDo.add_action_log(action="Resume batch {} for company: {}".format(batch_id, company))
-            if last_processed_employee_id:
-                PayrollLavaDo.delete_last_processed_employee_batch_records(last_processed_employee_id, batch_id)
-                PayrollLavaDo.add_action_log(
-                    action="Batch: {} for Company: {} removed the records of"
-                           " employee {}".format(batch_id, company,
-                                                 last_processed_employee_id))
+            else:
+                batch_id = progress_batches[0].name
+                last_processed_employee_id = PayrollLavaDo.get_batch_last_processed_employee_id(batch_id)
+                PayrollLavaDo.add_action_log(action="Resume batch {} for company: {}".format(batch_id, company))
+                if last_processed_employee_id:
+                    PayrollLavaDo.delete_last_processed_employee_batch_records(last_processed_employee_id, batch_id)
+                    PayrollLavaDo.add_action_log(
+                        action="Batch: {} for Company: {} removed the records of"
+                               " employee {}".format(batch_id, company,
+                                                     last_processed_employee_id))
 
         if batch_id == "":
-            new_batch = frappe.new_doc("Lava Payroll LavaDo")
+            new_batch = frappe.new_doc("Lava Payroll LavaDo Batch")
             new_batch.company = company
-            new_batch.start_date = frappe.utils.today()
+            new_batch.start_date = start_date
             new_batch.status = "In Progress"
+            new_batch.end_date = end_date
             new_batch.save(ignore_permissions=True)
             batch_id = new_batch.name
             PayrollLavaDo.add_action_log(
@@ -200,7 +205,7 @@ class PayrollLavaDo:
     def get_batch_last_processed_employee_id(batch_id):
         try:
             employee_id = frappe.get_last_doc('Lava Batch Object', {"batch_id": batch_id, "object_type": 'Employee'},
-                                              ['object_id'])
+                                              ).object_id
         except frappe.DoesNotExistError:
             employee_id = None
 
@@ -249,7 +254,7 @@ class PayrollLavaDo:
             attendance_list = PayrollLavaDo.get_attendance_list(employee.employee_id, start_date, end_date)
             employee_changelog_records = PayrollLavaDo.get_employee_changelog_records(max_date=end_date,
                                                                                       employee_id=employee.employee_id)
-            employee_timesheet = PayrollLavaDo.create_employee_timesheet(employee_id=employee.name,
+            employee_timesheet = PayrollLavaDo.create_employee_timesheet(employee_id=employee.employee_id,
                                                                          company=company
                                                                          )
 
@@ -378,9 +383,9 @@ class PayrollLavaDo:
                                           SELECT 
                                               e.name AS employee_id,e.designation, e.company As employee_company,
                                               ssa.name AS salary_structure_assignment,
-                                               ssa.from_date AS salary_structure_assignment_from_date,
+                                              ssa.from_date AS salary_structure_assignment_from_date,
                                               e.modified AS last_modified_date,
-                                               e.default_shift AS employee_default_shift,
+                                              e.default_shift AS employee_default_shift,
                                               sha.shift_type AS shift_assignment_shift_type
                                           FROM 
                                               `tabEmployee` AS e INNER JOIN `tabSalary Structure Assignment` ssa
@@ -389,9 +394,9 @@ class PayrollLavaDo:
                                                 ON sha.status = 'Active' 
                                                 AND sha.employee = e.name 
                                                 AND sha.company = e.company
-                                                AND CURDATE() BETWEEN sha.start_date, sha.end_date
+                                                AND CURDATE() BETWEEN sha.start_date AND sha.end_date
                                             INNER JOIN `tabSalary Structure` AS ss
-                                                ON sha.salary_structure = ss.name AND ss.company = ='{company}'
+                                                ON ssa.salary_structure = ss.name AND ss.company ='{company}'
                                           WHERE
                                               e.company = '{company}'
                                               AND e.name NOT IN
@@ -434,18 +439,25 @@ class PayrollLavaDo:
 
     @staticmethod
     def get_company_employees(company: str, batch_id: str, last_processed_employee_id: str = None):
-        employee_list = frappe.db.sql(f""" 
+        employee_list_query_str = f""" 
                         SELECT 
                             name AS employee_id 
                         FROM 
                             `tabEmployee` 
                         WHERE company= '{company}'
-                        AND employee.name NOT IN 
+                        AND name NOT IN 
                             (SELECT object_id
-                            FROM `tabBatch Object` 
+                            FROM `tabLava Batch Object` 
                             WHERE  object_type = "Employee" 
-                                AND employee.batch_id = {batch_id}
-                                AND employee_name != {last_processed_employee_id})""", as_dict=1)
+                                AND batch_id = '{batch_id}'
+                        """
+
+        if last_processed_employee_id:
+            employee_list_query_str += f" AND employee_name != '{last_processed_employee_id}')"
+        else:
+            employee_list_query_str += ")"
+
+        employee_list = frappe.db.sql(employee_list_query_str, as_dict=1)
 
         return employee_list
 
@@ -483,15 +495,13 @@ class PayrollLavaDo:
         if attendance.early_exit:
             attendance.lava_exit_duration_difference = time_diff_in_hours(shift_type.end_time,
                                                                           attendance.out_time.time())
-        if shift_type.end_time.time() > shift_type.start_time.time():
+        shift_time_diff = time_diff_in_hours(shift_type.end_time, shift_type.start_time)
+        if shift_time_diff > 0:
             attendance.lava_planned_working_hours = time_diff_in_hours(shift_type.end_time, shift_type.start_time)
         else:
-            attendance.lava_planned_working_hours = time_diff_in_hours(shift_type.start_time,
-                                                                       datetime.datetime.strptime("23:59:00",
-                                                                                                  "%H:%M:%S")) + (
-                                                            1 / 60)
+            attendance.lava_planned_working_hours = time_diff_in_hours(datetime.timedelta(hours=23, minutes=59),shift_type.start_time)
             attendance.lava_planned_working_hours += time_diff_in_hours(
-                datetime.datetime.strptime("00:00:00", "%H:%M:%S"),
+                datetime.timedelta(hours=00, minutes=00),
                 shift_type.end_time)
         attendance.save(ignore_permissions=True)
 
@@ -574,7 +584,7 @@ class PayrollLavaDo:
 
     @staticmethod
     def update_batch_status(batch_id: str, status: str):
-        frappe.set_value("Lava Payroll LavaDo", batch_id, "status", status)
+        frappe.set_value("Lava Payroll LavaDo Batch", batch_id, "status", status)
 
 
 @frappe.whitelist()
