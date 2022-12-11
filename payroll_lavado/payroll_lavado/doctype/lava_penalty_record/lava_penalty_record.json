@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "{employee}-{penalty_date}",
+ "autoname": "format:{employee}-{penalty_date}",
  "creation": "2022-11-14 19:19:32.482916",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -92,7 +92,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2022-12-07 15:05:20.923318",
+ "modified": "2022-12-11 15:59:37.867689",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Penalty Record",

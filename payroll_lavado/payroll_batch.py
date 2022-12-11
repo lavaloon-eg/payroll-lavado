@@ -3,7 +3,7 @@ import json
 from datetime import date
 
 import frappe
-from frappe.utils import now, time_diff_in_hours, get_datetime
+from frappe.utils import now, time_diff_in_hours, get_datetime, getdate
 from frappe.utils.logger import get_logger
 
 
@@ -14,6 +14,9 @@ from frappe.utils.logger import get_logger
 # - user should select the company
 # - select start date
 # - select end date
+payroll_logger = get_logger('payroll_lavado')
+
+
 class PayrollLavaDo:
     penalty_policy_groups = []
     penalty_policies = []
@@ -63,7 +66,7 @@ class PayrollLavaDo:
             policies = PayrollLavaDo.penalty_policies
 
         for policy in policies:
-            if policy.name == policy_id:
+            if policy['policy_name'] == policy_id:
                 return policy
         return None
 
@@ -72,10 +75,10 @@ class PayrollLavaDo:
         # the policies are being assumed that they sorted by group, subgroup, tolerance_duration desc,
         # occurrence_number desc
         for policy in policies:
-            if policy['penalty_group'] == group_name and \
-                    policy['penalty_subgroup'] == subgroup_name and \
-                    policy['occurrence_number'] <= occurrence_number and \
-                    policy['duration_tolerance'] < gap_duration_in_minutes:
+            if policy['penalty_group'].lower() == group_name.lower() and \
+                    policy['policy_subgroup'].lower() == subgroup_name.lower() and \
+                    policy['occurrence_number'] or 0 <= occurrence_number and \
+                    policy['tolerance_duration'] < gap_duration_in_minutes:
                 return policy
         return None
 
@@ -110,6 +113,7 @@ class PayrollLavaDo:
                                       'penalty_group': row.penalty_group.lower(),
                                       'deduction_rule': row.deduction_rule.lower(),
                                       'reset_duration': row.reset_duration,
+                                      'occurrence_number': row.occurence_number,
                                       'policy_subgroup': row.penalty_subgroup.lower(),
                                       'deduction_in_days': row.deduction_in_days,
                                       'deduction_amount': row.deduction_amount,
@@ -119,7 +123,7 @@ class PayrollLavaDo:
             last_parent_policy['designations'].append({'designation_name': row.designation_name})
 
     @staticmethod
-    def create_resume_batch(company: str, start_date: date, end_date: date):
+    def create_resume_batch(company: str, start_date: date, end_date: date, new_batch_id:str):
         # this is the main entry point of the entire batch, and it can be called from a UI screen on desk,
         # or from a background scheduled job
         PayrollLavaDo.add_action_log("Start batch", "Log")
@@ -152,17 +156,21 @@ class PayrollLavaDo:
                                           ['name', 'start_date', 'end_date'])
         if len(progress_batches) > 1:
             exp_msg = frappe._("Company {} has more than a batch in progress, Please check".format(company))
-            get_logger(exp_msg)
+            payroll_logger.info(exp_msg)
+            PayrollLavaDo.add_action_log(action=exp_msg, action_type="Error")
+
             frappe.throw(exp_msg)
 
-        elif len(progress_batches) == 1:
+        elif len(progress_batches) == 1 and new_batch_id ==  progress_batches[0].name:
             batch_id = progress_batches[0].name
             if progress_batches[0].start_date != start_date or progress_batches[0].end_date != end_date:
                 exp_msg = frappe._(
                     "Company {} has  batch {} in progress but with different date range than requested,"
                     " Please check".format(
                         company, progress_batches[0].name))
-                get_logger(exp_msg)
+                payroll_logger.info(exp_msg)
+                PayrollLavaDo.add_action_log(action=exp_msg, action_type="Error")
+
                 frappe.throw(exp_msg)
             else:
                 last_processed_employee_id = PayrollLavaDo.get_batch_last_processed_employee_id(batch_id)
@@ -239,8 +247,9 @@ class PayrollLavaDo:
 
         if invalid_shift_types:
             exp_msg = "Shift types {} are missing data".format(invalid_shift_types)
+            payroll_logger.info(exp_msg)
+            payroll_logger.info(exp_msg)
             frappe.throw(frappe._(exp_msg))
-            get_logger(exp_msg)
 
     @staticmethod
     def process_employees(batch_id: str, company: str, start_date: date, end_date: date,
@@ -266,6 +275,12 @@ class PayrollLavaDo:
                     attendance_date=attendance.attendance_date,
                     employee_change_log_records=employee_changelog_records)
                 # TODO: handle the exceptions
+                if not employee_changelog_record:
+                    exception_msg = f"Skipping {attendance.name} for the employee {attendance.employee} as he hasn't changelog for this date"
+                    payroll_logger.info(exception_msg)
+                    PayrollLavaDo.add_action_log(action_type="Error", action=exception_msg)
+
+                    continue
                 PayrollLavaDo.calc_attendance_working_hours_breakdowns(attendance, employee_changelog_record)
                 PayrollLavaDo.add_timesheet_record(employee_timesheet, attendance)
                 employee_applied_policies = PayrollLavaDo.get_employee_applied_policies(
@@ -273,8 +288,10 @@ class PayrollLavaDo:
                 if employee_applied_policies:
                     PayrollLavaDo.add_penalties(employee_changelog_record, batch_id, attendance,
                                                 employee_applied_policies)
-
-                employee_timesheet.save(ignore_permissions=True)
+                try:
+                    employee_timesheet.save(ignore_permissions=True) #TODO: Submit
+                except: #TODO :Handle  overlap
+                    PayrollLavaDo.add_action_log(action="Overlap time for th same employee {}".format(employee_changelog_record.employee), action_type="Error")
                 PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Timesheet",
                                                          object_id=employee_timesheet.name,
                                                          status="In progress", notes="")
@@ -293,13 +310,14 @@ class PayrollLavaDo:
 
         for existing_penalty_record in existing_penalty_records:
             policy = PayrollLavaDo.get_policy_by_id(existing_penalty_record.penalty_policy, policies=applied_policies)
-            PayrollLavaDo.get_policy_and_add_penalty_record(
-                employee_changelog_record=employee_changelog_record,
-                attendance=attendance,
-                policy_group_obj=PayrollLavaDo.get_policy_group_by_id(policy.penalty_group),
-                policy_subgroup=policy.penalty_subgroup,
-                batch_id=batch_id,
-                applied_policies=applied_policies)
+            if policy:
+                PayrollLavaDo.get_policy_and_add_penalty_record(
+                    employee_changelog_record=employee_changelog_record,
+                    attendance=attendance,
+                    policy_group_obj=PayrollLavaDo.get_policy_group_by_id(policy.penalty_group),
+                    policy_subgroup=policy.penalty_subgroup,
+                    batch_id=batch_id,
+                    applied_policies=applied_policies)
 
         if attendance.status.lower() == "absent":
             PayrollLavaDo.get_policy_and_add_penalty_record(
@@ -384,17 +402,6 @@ class PayrollLavaDo:
 
     @staticmethod
     def create_employees_first_changelog_records(company: str):
-        employees = frappe.get_all("Employee", {"company": company})
-        # *********************************************#
-        for emp in employees:
-            if not frappe.db.exists("Shift Assignment", {'employee': emp.name}):
-                ssa = frappe.new_doc("Shift Assignment")
-                ssa.employee = emp.name
-                ssa.shift_type = "Default Shift"
-                ssa.start_date = "2022-10-01"
-                ssa.insert(ignore_permissions=1, ignore_links=1)
-
-        # *********************************************#
         # TODO: future enhancement: We can change the employee transfer doctype to enhance the result accuracy
         # Fixme : """e.default_shift AS employee_default_shift,"" to be added to the query to consider employee default shift
 
@@ -404,16 +411,17 @@ class PayrollLavaDo:
                                               ssa.name AS salary_structure_assignment,
                                               ssa.from_date AS salary_structure_assignment_from_date,
                                               e.modified AS last_modified_date,
-                                              sha.shift_type AS shift_assignment_shift_type
+                                              sha.shift_type AS shift_assignment_shift_type,
+                                              ss.hour_rate AS salary_structure_hour_rate
                                           FROM 
-                                              `tabEmployee` AS e INNER JOIN `tabSalary Structure Assignment` ssa
+                                              `tabEmployee` AS e LEFT JOIN `tabSalary Structure Assignment` ssa
                                               ON e.name = ssa.employee and ssa.company = '{company}'
                                           LEFT JOIN `tabShift Assignment` AS sha
                                                 ON sha.status = 'Active' 
                                                 AND sha.employee = e.name 
                                                 AND sha.company = e.company
                                                 AND CURDATE() BETWEEN sha.start_date AND sha.end_date
-                                            INNER JOIN `tabSalary Structure` AS ss
+                                          LEFT  JOIN `tabSalary Structure` AS ss
                                                 ON ssa.salary_structure = ss.name AND ss.company ='{company}'
                                           WHERE
                                               e.company = '{company}'
@@ -426,7 +434,7 @@ class PayrollLavaDo:
                                       """, as_dict=1)
         employees_with_missing_data = []
         for row in rows:
-            if row.designation is None or row.salary_structure_assignment is None or not row.employee_shift:
+            if row.designation is None or row.salary_structure_assignment is None or not row.shift_assignment_shift_type:
                 employees_with_missing_data.append(row.employee_id)
 
             else:
@@ -438,13 +446,12 @@ class PayrollLavaDo:
                 employee_change_log_record.designation = row.designation
                 employee_change_log_record.attendance_plan = row.attendance_plan
                 employee_change_log_record.salary_structure_assignment = row.salary_structure_assignment
+                employee_change_log_record.hour_rate = row.salary_structure_hour_rate or 0
                 employee_change_log_record.insert(ignore_permissions=True)
         if employees_with_missing_data:
             exp_msg = "Employees {} doesn't have designation  salary " \
                       "structure assignment and/or shift.".format(employees_with_missing_data)
-            logger = get_logger()
-            logger.info = exp_msg
-            return logger
+            payroll_logger.info(exp_msg)
 
     @staticmethod
     def get_employee_changelog_records(max_date: date, employee_id: str):
@@ -512,14 +519,14 @@ class PayrollLavaDo:
     @staticmethod
     def calc_attendance_working_hours_breakdowns(attendance, employee_changelog_record):
         attendance_doc = frappe.get_doc("Attendance", attendance.name)
-        if attendance_doc.shift and attendance_doc.status != 'On Leave':
+        if attendance_doc.shift and attendance_doc.status != 'On Leave' and attendance_doc.docstatus != 2: #Fixme: Should we consider submitted attendances only?
             shift_type = PayrollLavaDo.get_shift_type_by_id(attendance.shift)
             if attendance_doc.late_entry:
                 attendance_doc.lava_entry_duration_difference = (
-                        get_datetime(attendance_doc.in_time) - get_datetime(shift_type.start_time)).time()
+                        get_datetime(attendance_doc.in_time) - get_datetime(shift_type.start_time)).minute
             if attendance_doc.early_exit:
                 attendance_doc.lava_exit_duration_difference = (
-                    get_datetime(shift_type.end_time - attendance_doc.out_time))
+                    get_datetime(shift_type.end_time - attendance_doc.out_time)).minute
             shift_time_diff = time_diff_in_hours(shift_type.end_time, shift_type.start_time)
             if shift_time_diff > 0:
                 attendance_doc.lava_planned_working_hours = time_diff_in_hours(shift_type.end_time,
@@ -538,7 +545,7 @@ class PayrollLavaDo:
             "activity_type": activity_type,
             "hours": attendance.working_hours,
             "from_time": attendance.in_time
-        })
+        }) #TODO :Handle overlap, till now we didn't save the timesheet , then we can't validate the parent, will revisit
 
     @staticmethod
     def add_penalty_record(employee_changelog_record, batch_id,
@@ -550,23 +557,23 @@ class PayrollLavaDo:
         if not penalty_record:
             penalty_record = frappe.new_doc("Lava Penalty Record")
 
-        deduction_in_days_amount = employee_changelog_record.hourly_rate * policy.deduction_in_days
-        deduction_absolute_amount = policy.absolute_amount
+        deduction_in_days_amount = employee_changelog_record.hourly_rate * policy['deduction_in_days']
+        deduction_absolute_amount = policy.get('deduction_amount', 0)
         applied_penalty_deduction_amount = 0
 
-        if policy.deduction_rule == "biggest":
+        if policy['deduction_rule'] == "biggest":
             if deduction_absolute_amount > deduction_in_days_amount:
                 applied_penalty_deduction_amount = deduction_absolute_amount
             else:
                 applied_penalty_deduction_amount = deduction_in_days_amount
-        elif policy.deduction_rule == "smallest":
+        elif policy['deduction_rule'] == "smallest":
             if deduction_absolute_amount < deduction_in_days_amount:
                 applied_penalty_deduction_amount = deduction_absolute_amount
             else:
                 applied_penalty_deduction_amount = deduction_in_days_amount
-        elif policy.deduction_rule == "absolute amount":
+        elif policy['deduction_rule'] == "absolute amount":
             applied_penalty_deduction_amount = deduction_absolute_amount
-        elif policy.deduction_rule == "deduction in days":
+        elif policy['deduction_rule'] == "deduction in days":
             applied_penalty_deduction_amount = deduction_in_days_amount
         else:
             applied_penalty_deduction_amount = 0
@@ -575,11 +582,11 @@ class PayrollLavaDo:
                 attendance.attendance_date,
                 employee_changelog_record.employee
             )
-            get_logger(exp_msg)
+            payroll_logger.info(exp_msg)
             return
 
         penalty_record.employee = employee_changelog_record.employee
-        penalty_record.penalty_policy = policy.name
+        penalty_record.penalty_policy = policy['policy_name']
         penalty_record.penalty_date = attendance.attendance_date
         penalty_record.occurrence_number = policy_occurrence_number
         penalty_record.penalty_amount = applied_penalty_deduction_amount
@@ -604,7 +611,7 @@ class PayrollLavaDo:
         additional_salary_record.overwrite_salary_structure_amount = 0
         additional_salary_record.amount = penalty_record.penalty_amount
         additional_salary_record.reason = f"Apply policy {penalty_record.penalty_policy}, occurrence number {penalty_record.occurrence_number}."
-        additional_salary_record.save(ignore_permissions=True)
+        additional_salary_record.save(ignore_permissions=True) #TODO: Submit
         PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Additional Salary",
                                                  object_id=additional_salary_record.name,
                                                  status="Created", notes="")
@@ -618,8 +625,10 @@ class PayrollLavaDo:
 def run_payroll_lavado_batch(doc: str):
     doc_dict = json.loads(doc)
     company = doc_dict['company']
-    start_date = doc_dict['start_date']
-    end_date = doc_dict['end_date']
+    start_date = getdate(doc_dict['start_date'])
+    end_date = getdate(doc_dict['end_date'])
+    new_batch_id = doc_dict['name']
     PayrollLavaDo.create_resume_batch(company=company,
                                       start_date=start_date,
-                                      end_date=end_date)
+                                      end_date=end_date,
+                                      new_batch_id=new_batch_id)
