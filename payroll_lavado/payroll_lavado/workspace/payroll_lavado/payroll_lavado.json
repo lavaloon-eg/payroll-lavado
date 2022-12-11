@@ -44,8 +44,8 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Penalty Sub Group",
-   "link_to": "Lava Penalty Sub Group",
+   "label": "Employee Payroll Changelog",
+   "link_to": "Lava Employee Payroll Changelog",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -53,14 +53,14 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Employee Payroll Changelog",
-   "link_to": "Lava Employee Payroll Changelog",
+   "label": "Payroll LavaDo Batch",
+   "link_to": "Lava Payroll LavaDo Batch",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   }
  ],
- "modified": "2022-11-03 16:57:13.218492",
+ "modified": "2022-12-08 12:34:10.994464",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Payroll LavaDo",

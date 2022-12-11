@@ -7,7 +7,7 @@
   }
  ],
  "allow_rename": 1,
- "autoname": "format:{YYYY}-{MM}-{DD}-{mm}-{SS}",
+ "autoname": "format:{company}-{YYYY}-{MM}-{####}",
  "creation": "2022-11-14 18:02:31.461791",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -16,7 +16,6 @@
   "company",
   "start_date",
   "end_date",
-  "amended_from",
   "status",
   "last_processed_employee"
  ],
@@ -44,15 +43,6 @@
    "reqd": 1
   },
   {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "Lava Payroll LavaDo Batch",
-   "print_hide": 1,
-   "read_only": 1
-  },
-  {
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
@@ -67,9 +57,8 @@
   }
  ],
  "index_web_pages_for_search": 1,
- "is_submittable": 1,
  "links": [],
- "modified": "2022-12-04 14:46:21.180324",
+ "modified": "2022-12-08 13:58:22.414487",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Payroll LavaDo Batch",
