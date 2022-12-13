@@ -141,7 +141,7 @@ class PayrollLavaDo:
             PayrollLavaDo.add_action_log(
                 action="Due to the batches validation issue, exit the Batch Process for Company: {}, start date: {}, "
                        "end date: {}".format(company, start_date, end_date))
-            return
+            # return # FIXME: handle the troubled shift types
 
         PayrollLavaDo.create_employees_first_changelog_records(company)
         PayrollLavaDo.add_action_log(
@@ -196,6 +196,8 @@ class PayrollLavaDo:
             action="Batch: {} starting auto attendance".format(batch_id))
         for shift_type in PayrollLavaDo.shift_types:
             if shift_type.enable_auto_attendance:
+                PayrollLavaDo.add_action_log(
+                    action="Batch: {} run auto attendance of shift type '{}'".format(batch_id, shift_type.name))
                 PayrollLavaDo.run_standard_auto_attendance(shift_type)
 
         PayrollLavaDo.process_employees(batch_id, company, start_date, end_date, last_processed_employee_id)
@@ -210,7 +212,8 @@ class PayrollLavaDo:
         new_doc.action = action
         new_doc.action_type = action_type
         new_doc.notes = notes
-        new_doc.save(ignore_permissions=True)
+        new_doc.insert(ignore_permissions=True)
+        #new_doc.commit
 
     @staticmethod
     def get_batch_last_processed_employee_id(batch_id):
@@ -246,7 +249,7 @@ class PayrollLavaDo:
                 invalid_shift_types.append(shift_type.name)
 
         if invalid_shift_types:
-            exp_msg = "Shift types {} are missing data".format(invalid_shift_types)
+            exp_msg = "Shift types {} have missing data".format(invalid_shift_types)
             payroll_logger.info(exp_msg)
             payroll_logger.info(exp_msg)
             frappe.throw(frappe._(exp_msg))
