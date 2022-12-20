@@ -361,7 +361,7 @@ class PayrollLavaDo:
                                                 employee_applied_policies)
                 try:
                     employee_timesheet.save(ignore_permissions=True)  # TODO: Submit
-                except Ex as ex:  # TODO :Handle  overlap
+                except Exception as ex:  # TODO :Handle  overlap
                     PayrollLavaDo.add_action_log(
                         action="Overlap time for th same employee {}".format(employee_changelog_record.employee),
                         action_type="Error")
