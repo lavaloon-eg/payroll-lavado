@@ -322,7 +322,8 @@ class PayrollLavaDo:
                     employee_change_log_records=employee_changelog_records)
                 # TODO: handle the exceptions
                 if not employee_changelog_record:
-                    exception_msg = f"Skipping {attendance.name} for the employee {attendance.employee} as he hasn't changelog for this date"
+                    exception_msg = f"Skipping {attendance.name} for the employee {attendance.employee} " \
+                                    f"as he hasn't changelog for this date"
                     PayrollLavaDo.add_action_log(action_type="Error", action=exception_msg)
                     frappe.log_error(message=exception_msg, title="Payroll LavaDo Batch Error")
                     continue
@@ -612,7 +613,8 @@ class PayrollLavaDo:
             "activity_type": activity_type,
             "hours": attendance.working_hours,
             "from_time": attendance.in_time
-        })  # TODO :Handle overlap, till now we didn't save the timesheet , then we can't validate the parent, will revisit
+        })  # TODO :Handle overlap, till now we didn't save the timesheet ,
+        # then we can't validate the parent, will revisit
 
     @staticmethod
     def add_penalty_record(employee_changelog_record, batch_id,
