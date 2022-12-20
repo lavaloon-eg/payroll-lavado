@@ -8,6 +8,7 @@ from frappe.utils import now, time_diff_in_hours, get_datetime, getdate
 from frappe import _dict as fdict
 # noinspection PyProtectedMember
 from frappe import _
+from lava_custom.lava_custom.doctype.lava_biometric_attendance_record import lava_biometric_attendance_record
 
 
 # from frappe.utils.logger import get_logger
@@ -15,7 +16,6 @@ from frappe import _
 # TODO: Add hook on employee & salary structure assignment on save event :
 #  create employee chengelog record with the new data
 # TODO: Check if the employee transfer updates the employee record; then no need to ad hook into employee transfer too
-# TODO: LavaBiometricAttendanceRecord.process()
 # TODO: add screen payroll lavado screen
 # - user should select the company
 # - select start date
@@ -39,8 +39,24 @@ class PayrollLavaDo:
     penalty_policy_groups = []
     penalty_policies = []
     shift_types = None
-    debug_mode = True
+    debug_mode = False              # TODO: make it False for production
     payroll_activity_type = None
+
+    @staticmethod
+    def run_biometric_attendance_records_process(start_date, end_date):
+        checkin_records = frappe.get_all("Lava Biometric Attendance Record",
+                                         {
+                                             'status': ["<>", 'Processed'],
+                                             'timestamp': ["between", [start_date.strftime('%Y-%m-%d'),
+                                                                       end_date.strftime('%Y-%m-%d')]]
+                                         })
+        for checkin_record in checkin_records:
+            try:
+                checkin_record.process()
+            except Exception as ex:
+                frappe.log_error(message="record id: '{}', employee_biometric_id: '{}'. Error: '{}'".format(
+                    checkin_record.name, checkin_record.employee_biometric_id, str(ex)),
+                                 title="run_biometric_attendance_records_process")
 
     @staticmethod
     def check_payroll_activity_type():
@@ -49,7 +65,6 @@ class PayrollLavaDo:
             activity_type.activity_type = "payroll_activity_type"
             activity_type.code = "pat"
             activity_type.insert(ignore_permissions=True)
-            activity_type.commit()
             PayrollLavaDo.payroll_activity_type = "payroll_activity_type"
 
     @staticmethod
@@ -176,6 +191,9 @@ class PayrollLavaDo:
         # this is the main entry point of the entire batch, and it can be called from a UI screen on desk,
         # or from a background scheduled job
         PayrollLavaDo.add_action_log("Start batch", "Log")
+        PayrollLavaDo.add_action_log("Start processing the new and failed biometric attendance records ", "Log")
+        PayrollLavaDo.run_biometric_attendance_records_process(start_date=start_date, end_date=end_date)
+        PayrollLavaDo.add_action_log("End processing the new and failed biometric attendance records ", "Log")
         batch_id = ""
         last_processed_employee_id = ""
         PayrollLavaDo.get_penalty_policy_groups()
