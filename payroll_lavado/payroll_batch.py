@@ -44,12 +44,13 @@ class PayrollLavaDo:
 
     @staticmethod
     def run_biometric_attendance_records_process(start_date, end_date):
+        # FIXME: We should iterate on biometric record pages instead of hard-coding 3000
         checkin_records = frappe.get_all("Lava Biometric Attendance Record",
                                          {
                                              'status': ["<>", 'Processed'],
                                              'timestamp': ["between", [start_date.strftime('%Y-%m-%d'),
                                                                        end_date.strftime('%Y-%m-%d')]]
-                                         })
+                                         }, limit_page_length=3000)
         for checkin_record in checkin_records:
             try:
                 checkin_record.process()
