@@ -36,6 +36,17 @@ class PayrollLavaDo:
     penalty_policies = []
     shift_types = None
     debug_mode = True
+    payroll_activity_type = None
+
+    @staticmethod
+    def check_payroll_activity_type():
+        if not frappe.db.exists("Activity Type", "payroll_activity_type"):
+            activity_type = frappe.new_doc("Activity Type")
+            activity_type.activity_type = "payroll_activity_type"
+            activity_type.code = "pat"
+            activity_type.insert(ignore_permissions=True)
+            activity_type.commit()
+            PayrollLavaDo.payroll_activity_type = "payroll_activity_type"
 
     @staticmethod
     def add_batch_to_background_jobs(company: str, start_date: date, end_date: date, new_batch_id: str):
@@ -167,6 +178,7 @@ class PayrollLavaDo:
         PayrollLavaDo.get_penalty_policy_groups()
         PayrollLavaDo.get_penalty_policies(company)
         PayrollLavaDo.get_shift_types()
+        PayrollLavaDo.check_payroll_activity_type()
 
         PayrollLavaDo.add_action_log(action="Start validating shift types.")
 
@@ -178,7 +190,6 @@ class PayrollLavaDo:
                        "end date: {}".format(company, start_date, end_date))
             frappe.log_error(message="validate_shift_types; Error message: '{}'".format(str(ex)),
                              title="Payroll LavaDo Batch Error")
-            # return # FIXME: handle the troubled shift types
 
         PayrollLavaDo.create_employees_first_changelog_records(company)
         PayrollLavaDo.add_action_log(
@@ -211,7 +222,7 @@ class PayrollLavaDo:
                 last_processed_employee_id = PayrollLavaDo.get_batch_last_processed_employee_id(batch_id)
                 PayrollLavaDo.add_action_log(action="Resume batch {} for company: {}".format(batch_id, company))
                 if last_processed_employee_id:
-                    PayrollLavaDo.delete_last_processed_employee_batch_records(last_processed_employee_id, batch_id)
+                    PayrollLavaDo.delete_employee_batch_records(last_processed_employee_id, batch_id)
                     PayrollLavaDo.add_action_log(
                         action="Batch: {} for Company: {} removed the records of"
                                " employee {}".format(batch_id, company,
@@ -269,15 +280,15 @@ class PayrollLavaDo:
         return employee_id
 
     @staticmethod
-    def delete_last_processed_employee_batch_records(employee: str, batch_id: str):
+    def delete_employee_batch_records(employee: str, batch_id: str):
         batch_related_doctypes = ["TimeSheet", "Lava Penalty Record", "Additional Salary"]
-        employee_batch_records_ids = frappe.get_all("Lava Batch Object",
-                                                    {'object_type': ['in', batch_related_doctypes],
-                                                     'object_id': employee,
-                                                     'batch_id': batch_id},
-                                                    ['object_type', 'object_id'])
+        employee_batch_records = frappe.get_all("Lava Batch Object",
+                                                {'object_type': ['in', batch_related_doctypes],
+                                                 'object_id': employee,
+                                                 'batch_id': batch_id},
+                                                ['object_type', 'object_id'])
 
-        for record in employee_batch_records_ids:  # TODO: Use sql delete
+        for record in employee_batch_records:
             frappe.delete_doc(doctype=record.object_type, name=record.object_id, force=1)
 
     @staticmethod
@@ -335,7 +346,9 @@ class PayrollLavaDo:
                         employee.employee_id, attendance.name, str(ex)),
                         title="Payroll LavaDo Batch Error")
                 try:
-                    PayrollLavaDo.add_timesheet_record(employee_timesheet, attendance)
+                    PayrollLavaDo.add_timesheet_record(employee_timesheet= employee_timesheet,
+                                                       attendance=attendance,
+                                                       activity_type=PayrollLavaDo.payroll_activity_type)
                 except Exception as ex:
                     frappe.log_error(message="add_timesheet_record:"
                                              " Employee: {}, attendance ID: {}; Error message: '{}'".format(
@@ -513,7 +526,7 @@ class PayrollLavaDo:
                 employee_change_log_record.salary_structure_assignment = row.salary_structure_assignment
                 employee_change_log_record.hour_rate = row.salary_structure_hour_rate or 0
                 employee_change_log_record.insert(ignore_permissions=True)
-        if employees_with_missing_data:
+        if len(employees_with_missing_data) > 0:
             employees_with_missing_data_ids = ""
             for employee_missing_data in employees_with_missing_data:
                 employees_with_missing_data_ids += "," + row.employee_id
@@ -609,12 +622,19 @@ class PayrollLavaDo:
 
     @staticmethod
     def add_timesheet_record(employee_timesheet, attendance, activity_type=None):
+
+        if attendance.working_hours == 0:
+            frappe.log_error(message="adding timesheet record error: the working hours is zero of attendance ID '{}' "
+                                     "and attendance date: '{}'".format(attendance.name,
+                                                                        attendance.attendance_date),
+                             title="Payroll LavaDo Batch Error")
+            return
         employee_timesheet.append("time_logs", {
-            "activity_type": activity_type,
+            "activity_type": activity_type
             "hours": attendance.working_hours,
             "from_time": attendance.in_time
-        })  # TODO :Handle overlap, till now we didn't save the timesheet ,
-        # then we can't validate the parent, will revisit
+        })  # TODO :Handle overlap, based on the attendance date and
+        # employee_timesheet.time_logs using attendance.in_time ,
 
     @staticmethod
     def add_penalty_record(employee_changelog_record, batch_id,
