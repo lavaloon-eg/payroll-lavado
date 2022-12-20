@@ -7,6 +7,10 @@ This file tracks changes for the LavaDo Payroll app.
 
 ## Pending Changes
 
+## 1.0.2
+
+* Process biometric attendance records
+
 ## 1.0.1
 
 * Fix some static analysis and SQL injection errors
