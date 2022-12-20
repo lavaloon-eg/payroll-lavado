@@ -4,6 +4,10 @@ from datetime import date
 
 import frappe
 from frappe.utils import now, time_diff_in_hours, get_datetime, getdate
+# noinspection PyProtectedMember
+from frappe import _dict as fdict
+# noinspection PyProtectedMember
+from frappe import _
 
 
 # from frappe.utils.logger import get_logger
@@ -131,25 +135,24 @@ class PayrollLavaDo:
     def get_penalty_policies(company):
         if PayrollLavaDo.penalty_policies:
             PayrollLavaDo.penalty_policies.clear()
-        rows = frappe.db.sql(f"""
-                                    SELECT 
-                                        p.name, p.title AS policy_title, p.penalty_group, p.occurrence_number,
-                                        p.deduction_in_days, p. deduction_amount,
-                                        p.penalty_subgroup,
-                                        p.tolerance_duration,
-                                        d.designation AS designation_name,
-                                        g.deduction_rule, g.reset_duration
-                                    FROM 
-                                        `tabLava Penalty Policy` AS p 
-                                    INNER JOIN `tabPolicy Designations` AS d
-                                        ON p.name = d.parent
-                                    INNER JOIN `tabLava Penalty Group` AS g
-                                        ON p.penalty_group = g.name
-                                    WHERE
-                                        p.enabled= 1 AND p.company = '{company}'
-                                    ORDER BY p.penalty_group, p.penalty_subgroup, p.tolerance_duration desc,
-                                     p.occurrence_number desc
-                                """, as_dict=1)
+        rows = frappe.db.sql("""SELECT 
+                                p.name, p.title AS policy_title, p.penalty_group, p.occurrence_number,
+                                p.deduction_in_days, p. deduction_amount,
+                                p.penalty_subgroup,
+                                p.tolerance_duration,
+                                d.designation AS designation_name,
+                                g.deduction_rule, g.reset_duration
+                            FROM 
+                                `tabLava Penalty Policy` AS p 
+                            INNER JOIN `tabPolicy Designations` AS d
+                                ON p.name = d.parent
+                            INNER JOIN `tabLava Penalty Group` AS g
+                                ON p.penalty_group = g.name
+                            WHERE
+                                p.enabled= 1 AND p.company = %(company)s
+                            ORDER BY p.penalty_group, p.penalty_subgroup, p.tolerance_duration desc,
+                             p.occurrence_number desc
+                                """, {'company': company}, as_dict=1)
         last_parent_policy = None
         for row in rows:
             if not last_parent_policy or last_parent_policy['policy_name'] != row.name:
@@ -203,7 +206,7 @@ class PayrollLavaDo:
         progress_batches = frappe.get_all("Lava Payroll LavaDo Batch", {"status": "In Progress", "company": company},
                                           ['name', 'start_date', 'end_date'])
         if len(progress_batches) > 1:
-            exp_msg = frappe._("Company {} has more than a batch in progress, Please check".format(company))
+            exp_msg = _("Company {} has more than a batch in progress, Please check".format(company))
             frappe.log_error(message="Error message: '{}'".format(exp_msg), title="Payroll LavaDo Batch Error")
 
             frappe.throw(exp_msg)
@@ -211,7 +214,7 @@ class PayrollLavaDo:
         elif len(progress_batches) == 1 and new_batch_id == progress_batches[0].name:
             batch_id = progress_batches[0].name
             if progress_batches[0].start_date != start_date or progress_batches[0].end_date != end_date:
-                exp_msg = frappe._(
+                exp_msg = _(
                     "Company {} has  batch {} in progress but with different date range than requested,"
                     " Please check".format(
                         company, progress_batches[0].name))
@@ -295,10 +298,8 @@ class PayrollLavaDo:
     def validate_shift_types(shift_types):
         invalid_shift_types = []
         for shift_type in shift_types:
-            if (not shift_type.enable_auto_attendance
-                    or not shift_type.process_attendance_after
-                    or not shift_type.last_sync_of_checkin
-            ):
+            if (not shift_type.enable_auto_attendance or not shift_type.process_attendance_after
+                    or not shift_type.last_sync_of_checkin):
                 invalid_shift_types.append(shift_type.name)
 
         if invalid_shift_types:
@@ -346,7 +347,7 @@ class PayrollLavaDo:
                         employee.employee_id, attendance.name, str(ex)),
                         title="Payroll LavaDo Batch Error")
                 try:
-                    PayrollLavaDo.add_timesheet_record(employee_timesheet= employee_timesheet,
+                    PayrollLavaDo.add_timesheet_record(employee_timesheet=employee_timesheet,
                                                        attendance=attendance,
                                                        activity_type=PayrollLavaDo.payroll_activity_type)
                 except Exception as ex:
@@ -484,37 +485,35 @@ class PayrollLavaDo:
         # Fixme : """e.default_shift AS employee_default_shift,"" to be added to the query to consider employee default shift
         # TODO: consider the shift assignment start and end date compared with the batch start and end date
 
-        rows = frappe.db.sql(f"""
-                                          SELECT 
-                                              e.name AS employee_id,e.designation, e.company As employee_company,
-                                              ssa.name AS salary_structure_assignment,
-                                              ssa.from_date AS salary_structure_assignment_from_date,
-                                              e.modified AS last_modified_date,
-                                              sha.shift_type AS shift_assignment_shift_type,
-                                              ss.hour_rate AS salary_structure_hour_rate
-                                          FROM 
-                                              `tabEmployee` AS e LEFT JOIN `tabSalary Structure Assignment` ssa
-                                              ON e.name = ssa.employee and ssa.company = '{company}'
-                                          LEFT JOIN `tabShift Assignment` AS sha
-                                                ON sha.status = 'Active' 
-                                                AND sha.employee = e.name 
-                                                AND sha.company = e.company
-                                          LEFT  JOIN `tabSalary Structure` AS ss
-                                                ON ssa.salary_structure = ss.name AND ss.company ='{company}'
-                                          WHERE
-                                              e.company = '{company}'
-                                              AND e.name NOT IN
-                                              (
-                                                SELECT employee
-                                                from `tabLava Employee Payroll Changelog`
-                                                WHERE company = '{company}'
-                                              )
-                                      """, as_dict=1)
+        rows = frappe.db.sql("""
+        SELECT 
+          e.name AS employee_id,e.designation, e.company As employee_company,
+          ssa.name AS salary_structure_assignment,
+          ssa.from_date AS salary_structure_assignment_from_date,
+          e.modified AS last_modified_date,
+          sha.shift_type AS shift_assignment_shift_type,
+          ss.hour_rate AS salary_structure_hour_rate
+        FROM 
+          `tabEmployee` AS e LEFT JOIN `tabSalary Structure Assignment` ssa
+          ON e.name = ssa.employee and ssa.company = %(company)s
+        LEFT JOIN `tabShift Assignment` AS sha
+            ON sha.status = 'Active' 
+            AND sha.employee = e.name 
+            AND sha.company = e.company
+        LEFT JOIN `tabSalary Structure` AS ss
+            ON ssa.salary_structure = ss.name AND ss.company = %(company)s
+        WHERE
+          e.company = %(company)s
+          AND e.name NOT IN
+          (
+            SELECT employee
+            from `tabLava Employee Payroll Changelog`
+            WHERE company = %(company)s
+          )""", {'company': company}, as_dict=1)
         employees_with_missing_data = []
         for row in rows:
             if row.designation is None or row.salary_structure_assignment is None or not row.shift_assignment_shift_type:
                 employees_with_missing_data.append(row.employee_id)
-
             else:
                 employee_change_log_record = frappe.new_doc('Lava Employee Payroll Changelog')
                 employee_change_log_record.employee = row.employee_id
@@ -526,13 +525,12 @@ class PayrollLavaDo:
                 employee_change_log_record.salary_structure_assignment = row.salary_structure_assignment
                 employee_change_log_record.hour_rate = row.salary_structure_hour_rate or 0
                 employee_change_log_record.insert(ignore_permissions=True)
+
         if len(employees_with_missing_data) > 0:
-            employees_with_missing_data_ids = ""
-            for employee_missing_data in employees_with_missing_data:
-                employees_with_missing_data_ids += "," + row.employee_id
-            exp_msg = "Employees ({}) doesn't have designation  salary " \
-                      "structure assignment and/or shift.".format(employees_with_missing_data_ids)
-            frappe.log_error(message="Error message: '{}'".format(exp_msg), title="Payroll LavaDo Batch Error")
+            employees_with_missing_data_ids = ", ".join(employees_with_missing_data)
+            exp_msg = f"Employees ({employees_with_missing_data_ids}) don't have designated salary " \
+                      "structure assignment and/or shift."
+            frappe.log_error(message=f"Error message: '{exp_msg}'", title="Payroll LavaDo Batch Error")
 
     @staticmethod
     def get_employee_changelog_records(max_date: date, employee_id: str):
@@ -550,25 +548,28 @@ class PayrollLavaDo:
 
     @staticmethod
     def get_company_employees(company: str, batch_id: str, last_processed_employee_id: str = None):
-        employee_list_query_str = f""" 
+        employee_list_query_str = """ 
                         SELECT 
                             name AS employee_id 
                         FROM 
                             `tabEmployee` 
-                        WHERE company= '{company}'
+                        WHERE company= %(company)s
                         AND name NOT IN 
                             (SELECT object_id
                             FROM `tabLava Batch Object` 
                             WHERE  object_type = "Employee" 
-                                AND batch_id = '{batch_id}'
+                                AND batch_id = %(batch_id)s
                         """
 
         if last_processed_employee_id:
-            employee_list_query_str += f" AND employee_name != '{last_processed_employee_id}')"
+            employee_list_query_str += f" AND employee_name != %(last_processed_employee_name)s)"
         else:
             employee_list_query_str += ")"
 
-        employee_list = frappe.db.sql(employee_list_query_str, as_dict=1)
+        employee_list = frappe.db.sql(employee_list_query_str,
+                                      {'company': company, 'batch_id': batch_id,
+                                       'last_processed_employee_name': last_processed_employee_id},
+                                      as_dict=1)
 
         return employee_list
 
@@ -584,7 +585,7 @@ class PayrollLavaDo:
         print(batch_object_record.name)
 
     @staticmethod
-    def run_standard_auto_attendance(shift_type: dict):
+    def run_standard_auto_attendance(shift_type: fdict):
         shift_doc = frappe.get_doc('Shift Type', shift_type.name)
         shift_doc.process_auto_attendance()
         frappe.db.commit()
@@ -630,7 +631,7 @@ class PayrollLavaDo:
                              title="Payroll LavaDo Batch Error")
             return
         employee_timesheet.append("time_logs", {
-            "activity_type": activity_type
+            "activity_type": activity_type,
             "hours": attendance.working_hours,
             "from_time": attendance.in_time
         })  # TODO :Handle overlap, based on the attendance date and
@@ -648,7 +649,6 @@ class PayrollLavaDo:
 
         deduction_in_days_amount = employee_changelog_record.hourly_rate * policy['deduction_in_days']
         deduction_absolute_amount = policy.get('deduction_amount', 0)
-        applied_penalty_deduction_amount = 0
 
         if policy['deduction_rule'] == "biggest":
             if deduction_absolute_amount > deduction_in_days_amount:
@@ -665,7 +665,6 @@ class PayrollLavaDo:
         elif policy['deduction_rule'] == "deduction in days":
             applied_penalty_deduction_amount = deduction_in_days_amount
         else:
-            applied_penalty_deduction_amount = 0
             exp_msg = "Unknown deduction rule '{}' for attendance date {} for employee {}".format(
                 policy.deduction_rule,
                 attendance.attendance_date,
