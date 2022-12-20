@@ -46,7 +46,7 @@ class PayrollLavaDo:
     def run_biometric_attendance_records_process(start_date, end_date):
         checkin_records = frappe.get_all("Lava Biometric Attendance Record",
                                          {
-                                             'status': ["<>", 'Processed'],
+                                             'status': ["!=", 'Processed'],
                                              'timestamp': ["between", [start_date.strftime('%Y-%m-%d'),
                                                                        end_date.strftime('%Y-%m-%d')]]
                                          })
