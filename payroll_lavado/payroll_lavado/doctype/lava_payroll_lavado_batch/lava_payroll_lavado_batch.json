@@ -17,7 +17,8 @@
   "start_date",
   "end_date",
   "status",
-  "last_processed_employee"
+  "batch_process_start_time",
+  "batch_process_end_time"
  ],
  "fields": [
   {
@@ -52,16 +53,21 @@
    "options": "\nIn Progress\nCompleted\nTerminated"
   },
   {
-   "fieldname": "last_processed_employee",
-   "fieldtype": "Link",
-   "label": "Last Processed Employee",
-   "options": "Employee",
+   "fieldname": "batch_process_start_time",
+   "fieldtype": "Data",
+   "label": "Batch Process Start Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "batch_process_end_time",
+   "fieldtype": "Data",
+   "label": "Batch Process End Time",
    "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-12-11 16:34:55.118611",
+ "modified": "2022-12-25 13:01:35.153396",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Payroll LavaDo Batch",

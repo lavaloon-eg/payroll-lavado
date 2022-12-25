@@ -32,15 +32,17 @@ def create_resume_batch(company: str, start_date: date, end_date: date, new_batc
     except Exception as ex:
         print(str(ex))
         frappe.log_error(message="Create/resume batch; Error message: '{}'".format(str(ex)),
-                         title="Payroll LavaDo Batch Error")
+                         title=PayrollLavaDo.batch_process_title)
 
 
 class PayrollLavaDo:
     penalty_policy_groups = []
     penalty_policies = []
     shift_types = None
-    debug_mode = False              # TODO: make it False for production
+    debug_mode = False  # TODO: make it False for production
     payroll_activity_type = None
+    batch_process_title = "LavaDo Payroll Process"
+    batch_biometric_process_title = "run_biometric_attendance_records_process"
 
     @staticmethod
     def run_biometric_attendance_records_process(start_date, end_date):
@@ -56,7 +58,7 @@ class PayrollLavaDo:
             except Exception as ex:
                 frappe.log_error(message="record id: '{}', employee_biometric_id: '{}'. Error: '{}'".format(
                     checkin_record.name, checkin_record.employee_biometric_id, str(ex)),
-                                 title="run_biometric_attendance_records_process")
+                    title=PayrollLavaDo.batch_biometric_process_title)
 
     @staticmethod
     def check_payroll_activity_type():
@@ -84,7 +86,7 @@ class PayrollLavaDo:
             print(str(ex))
             frappe.log_error(
                 message="add the background job or run direct process; Error message: '{}'".format(str(ex)),
-                title="Payroll LavaDo Batch Error")
+                title=PayrollLavaDo.batch_process_title)
 
     @staticmethod
     def get_penalty_policy_groups():
@@ -210,7 +212,7 @@ class PayrollLavaDo:
                 action="Due to the batches validation issue, exit the Batch Process for Company: {}, start date: {}, "
                        "end date: {}".format(company, start_date, end_date))
             frappe.log_error(message="validate_shift_types; Error message: '{}'".format(str(ex)),
-                             title="Payroll LavaDo Batch Error")
+                             title=PayrollLavaDo.batch_process_title)
 
         PayrollLavaDo.create_employees_first_changelog_records(company)
         PayrollLavaDo.add_action_log(
@@ -225,7 +227,7 @@ class PayrollLavaDo:
                                           ['name', 'start_date', 'end_date'])
         if len(progress_batches) > 1:
             exp_msg = _("Company {} has more than a batch in progress, Please check".format(company))
-            frappe.log_error(message="Error message: '{}'".format(exp_msg), title="Payroll LavaDo Batch Error")
+            frappe.log_error(message="Error message: '{}'".format(exp_msg), title=PayrollLavaDo.batch_process_title)
 
             frappe.throw(exp_msg)
 
@@ -236,7 +238,7 @@ class PayrollLavaDo:
                     "Company {} has  batch {} in progress but with different date range than requested,"
                     " Please check".format(
                         company, progress_batches[0].name))
-                frappe.log_error(message="Error message: '{}'".format(exp_msg), title="Payroll LavaDo Batch Error")
+                frappe.log_error(message="Error message: '{}'".format(exp_msg), title=PayrollLavaDo.batch_process_title)
 
                 frappe.throw(exp_msg)
             else:
@@ -271,7 +273,7 @@ class PayrollLavaDo:
                     frappe.log_error(
                         message="Auto attendance of Shift Type: '{}' Error message: '{}'".format(shift_type.name,
                                                                                                  str(ex)),
-                        title="Payroll LavaDo Batch Error")
+                        title=PayrollLavaDo.batch_process_title)
 
         PayrollLavaDo.process_employees(batch_id, company, start_date, end_date, last_processed_employee_id)
         PayrollLavaDo.add_action_log(
@@ -301,16 +303,23 @@ class PayrollLavaDo:
         return employee_id
 
     @staticmethod
-    def delete_employee_batch_records(employee: str, batch_id: str):
+    def delete_employee_batch_records(employee_id: str, batch_id: str):
         batch_related_doctypes = ["TimeSheet", "Lava Penalty Record", "Additional Salary"]
         employee_batch_records = frappe.get_all("Lava Batch Object",
                                                 {'object_type': ['in', batch_related_doctypes],
-                                                 'object_id': employee,
                                                  'batch_id': batch_id},
                                                 ['object_type', 'object_id'])
-
         for record in employee_batch_records:
+            if record.object_type.lower() == "timesheet":
+                frappe.delete_doc(doctype="Timesheet", name=record.object_id, force=1)
+            elif record.object_type == "Lava Penalty Record":
+                frappe.delete_doc(doctype="Lava Penalty Record", name=record.object_id, force=1)
+            elif record.object_type == "Additional Salary":
+                frappe.delete_doc(doctype="Additional Salary", name=record.object_id, force=1)
+
             frappe.delete_doc(doctype=record.object_type, name=record.object_id, force=1)
+
+        frappe.delete_doc(doctype="Employee", name=employee_id, force=1)
 
     @staticmethod
     def validate_shift_types(shift_types):
@@ -325,7 +334,7 @@ class PayrollLavaDo:
             for invalid_shift_type in invalid_shift_types:
                 invalid_shift_types_ids += "," + invalid_shift_type.name
             exp_msg = "Shift types ({}) have missing data".format(invalid_shift_types_ids)
-            frappe.log_error(message="Error message: '{}'".format(exp_msg), title="Payroll LavaDo Batch Error")
+            frappe.log_error(message="Error message: '{}'".format(exp_msg), title=PayrollLavaDo.batch_process_title)
 
     @staticmethod
     def process_employees(batch_id: str, company: str, start_date: date, end_date: date,
@@ -355,7 +364,7 @@ class PayrollLavaDo:
                     exception_msg = f"Skipping {attendance.name} for the employee {attendance.employee} " \
                                     f"as he hasn't changelog for this date"
                     PayrollLavaDo.add_action_log(action_type="Error", action=exception_msg)
-                    frappe.log_error(message=exception_msg, title="Payroll LavaDo Batch Error")
+                    frappe.log_error(message=exception_msg, title=PayrollLavaDo.batch_process_title)
                     continue
                 try:
                     PayrollLavaDo.calc_attendance_working_hours_breakdowns(attendance, employee_changelog_record)
@@ -363,7 +372,7 @@ class PayrollLavaDo:
                     frappe.log_error(message="calc_attendance_working_hours_breakdowns:"
                                              " Employee: {}, attendance ID: {}; Error message: '{}'".format(
                         employee.employee_id, attendance.name, str(ex)),
-                        title="Payroll LavaDo Batch Error")
+                        title=PayrollLavaDo.batch_process_title)
                 try:
                     PayrollLavaDo.add_timesheet_record(employee_timesheet=employee_timesheet,
                                                        attendance=attendance,
@@ -372,7 +381,7 @@ class PayrollLavaDo:
                     frappe.log_error(message="add_timesheet_record:"
                                              " Employee: {}, attendance ID: {}; Error message: '{}'".format(
                         employee.employee_id, attendance.name, str(ex)),
-                        title="Payroll LavaDo Batch Error")
+                        title=PayrollLavaDo.batch_process_title)
                 employee_applied_policies = PayrollLavaDo.get_employee_applied_policies(
                     employee_changelog_record['designation'] if employee_changelog_record else "")
                 if employee_applied_policies:
@@ -385,7 +394,7 @@ class PayrollLavaDo:
                         action="Overlap time for th same employee {}".format(employee_changelog_record.employee),
                         action_type="Error")
                     frappe.log_error(message="process employee: {}, save timesheet; Error message: '{}'".format(
-                        employee.employee_id, str(ex)), title="Payroll LavaDo Batch Error")
+                        employee.employee_id, str(ex)), title=PayrollLavaDo.batch_process_title)
                 PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Timesheet",
                                                          object_id=employee_timesheet.name,
                                                          status="In progress", notes="")
@@ -548,7 +557,7 @@ class PayrollLavaDo:
             employees_with_missing_data_ids = ", ".join(employees_with_missing_data)
             exp_msg = f"Employees ({employees_with_missing_data_ids}) don't have designated salary " \
                       "structure assignment and/or shift."
-            frappe.log_error(message=f"Error message: '{exp_msg}'", title="Payroll LavaDo Batch Error")
+            frappe.log_error(message=f"Error message: '{exp_msg}'", title=PayrollLavaDo.batch_process_title)
 
     @staticmethod
     def get_employee_changelog_records(max_date: date, employee_id: str):
@@ -619,14 +628,16 @@ class PayrollLavaDo:
     @staticmethod
     def calc_attendance_working_hours_breakdowns(attendance, employee_changelog_record):
         attendance_doc = frappe.get_doc("Attendance", attendance.name)
-        if attendance_doc.shift and attendance_doc.status != 'On Leave' and attendance_doc.docstatus != 2:  # Fixme: Should we consider submitted attendances only?
+        if attendance_doc.shift:
             shift_type = PayrollLavaDo.get_shift_type_by_id(attendance.shift)
-            if attendance_doc.late_entry:
-                attendance_doc.lava_entry_duration_difference = (
-                        get_datetime(attendance_doc.in_time) - get_datetime(shift_type.start_time)).minute
-            if attendance_doc.early_exit:
-                attendance_doc.lava_exit_duration_difference = (
-                    get_datetime(shift_type.end_time - attendance_doc.out_time)).minute
+            if attendance_doc.status != 'Absent' and attendance_doc.status != 'On Leave' and \
+                    attendance_doc.docstatus != 1:
+                if attendance_doc.late_entry:
+                    attendance_doc.lava_entry_duration_difference = time_diff_in_hours(
+                            get_datetime(attendance_doc.in_time), get_datetime(shift_type.start_time)) * 60
+                if attendance_doc.early_exit:
+                    attendance_doc.lava_exit_duration_difference = time_diff_in_hours(
+                        get_datetime(shift_type.end_time, attendance_doc.out_time)) * 60
             shift_time_diff = time_diff_in_hours(shift_type.end_time, shift_type.start_time)
             if shift_time_diff > 0:
                 attendance_doc.lava_planned_working_hours = time_diff_in_hours(shift_type.end_time,
@@ -646,7 +657,7 @@ class PayrollLavaDo:
             frappe.log_error(message="adding timesheet record error: the working hours is zero of attendance ID '{}' "
                                      "and attendance date: '{}'".format(attendance.name,
                                                                         attendance.attendance_date),
-                             title="Payroll LavaDo Batch Error")
+                             title=PayrollLavaDo.batch_process_title)
             return
         employee_timesheet.append("time_logs", {
             "activity_type": activity_type,
@@ -689,7 +700,7 @@ class PayrollLavaDo:
                 employee_changelog_record.employee
             )
             frappe.log_error(message="add_penalty_record; Error message: '{}'".format(exp_msg),
-                             title="Payroll LavaDo Batch Error")
+                             title=PayrollLavaDo.batch_process_title)
             return
 
         penalty_record.employee = employee_changelog_record.employee
@@ -717,7 +728,8 @@ class PayrollLavaDo:
         additional_salary_record.salary_component = "HR Policy Deduction"  # TODO: Add by patch
         additional_salary_record.overwrite_salary_structure_amount = 0
         additional_salary_record.amount = penalty_record.penalty_amount
-        additional_salary_record.reason = f"Apply policy {penalty_record.penalty_policy}, occurrence number {penalty_record.occurrence_number}."
+        additional_salary_record.reason = f"Apply policy {penalty_record.penalty_policy}," \
+                                          f" occurrence number {penalty_record.occurrence_number}."
         additional_salary_record.save(ignore_permissions=True)  # TODO: Submit
         PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Additional Salary",
                                                  object_id=additional_salary_record.name,
@@ -734,8 +746,17 @@ def run_payroll_lavado_batch(doc: str):
     company = doc_dict['company']
     start_date = getdate(doc_dict['start_date'])
     end_date = getdate(doc_dict['end_date'])
+    # TODO: create new doc
     new_batch_id = doc_dict['name']
-    PayrollLavaDo.add_batch_to_background_jobs(company=company,
-                                               start_date=start_date,
-                                               end_date=end_date,
-                                               new_batch_id=new_batch_id)
+    result_status = ""
+    try:
+        PayrollLavaDo.add_batch_to_background_jobs(company=company,
+                                                   start_date=start_date,
+                                                   end_date=end_date,
+                                                   new_batch_id=new_batch_id)
+        result_status = "Success"
+    except Exception as ex:
+        result_status = f"Failed '{ex}'"
+        frappe.log_error(message=f"error occurred, '{ex}'", title=PayrollLavaDo.batch_process_title)
+    finally:
+        return result_status
