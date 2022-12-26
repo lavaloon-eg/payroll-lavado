@@ -23,11 +23,12 @@ from lava_custom.lava_custom.doctype.lava_biometric_attendance_record import lav
 # payroll_logger = get_logger('payroll_lavado')
 
 
-def create_resume_batch(company: str, start_date: date, end_date: date, new_batch_id: str):
+def create_resume_batch(company: str, start_date: date, end_date: date, new_batch_id: str, batch_options):
     try:
         print("start the job")
         PayrollLavaDo.create_resume_batch_process(company=company, start_date=start_date,
-                                                  end_date=end_date, new_batch_id=new_batch_id)
+                                                  end_date=end_date, new_batch_id=new_batch_id,
+                                                  batch_options=batch_options)
         print("end the job")
     except Exception as ex:
         print(str(ex))
@@ -46,19 +47,24 @@ class PayrollLavaDo:
 
     @staticmethod
     def run_biometric_attendance_records_process(start_date, end_date):
-        checkin_records = frappe.get_all("Lava Biometric Attendance Record",
-                                         {
-                                             'status': ["!=", 'Processed'],
-                                             'timestamp': ["between", [start_date.strftime('%Y-%m-%d'),
-                                                                       end_date.strftime('%Y-%m-%d')]]
-                                         })
-        for checkin_record in checkin_records:
-            try:
-                checkin_record.process()
-            except Exception as ex:
-                frappe.log_error(message="record id: '{}', employee_biometric_id: '{}'. Error: '{}'".format(
-                    checkin_record.name, checkin_record.employee_biometric_id, str(ex)),
-                    title=PayrollLavaDo.batch_biometric_process_title)
+        get_more_records = True
+        while get_more_records:
+            checkin_records = frappe.get_all("Lava Biometric Attendance Record",
+                                             {
+                                                 'status': ["!=", 'Processed'],
+                                                 'timestamp': ["between", [start_date.strftime('%Y-%m-%d'),
+                                                                           end_date.strftime('%Y-%m-%d')]]
+                                             }, limit_page_length=100)
+            if len(get_more_records) > 0:
+                for checkin_record in checkin_records:
+                    try:
+                        checkin_record.process()
+                    except Exception as ex:
+                        frappe.log_error(message="record id: '{}', employee_biometric_id: '{}'. Error: '{}'".format(
+                            checkin_record.name, checkin_record.employee_biometric_id, str(ex)),
+                            title=PayrollLavaDo.batch_biometric_process_title)
+            else:
+                get_more_records = False
 
     @staticmethod
     def check_payroll_activity_type():
@@ -70,7 +76,8 @@ class PayrollLavaDo:
             PayrollLavaDo.payroll_activity_type = "payroll_activity_type"
 
     @staticmethod
-    def add_batch_to_background_jobs(company: str, start_date: date, end_date: date, new_batch_id: str):
+    def add_batch_to_background_jobs(company: str, start_date: date, end_date: date,
+                                     new_batch_id: str, batch_options=None):
         try:
             if PayrollLavaDo.debug_mode:
                 PayrollLavaDo.create_resume_batch_process(company=company, start_date=start_date,
@@ -80,7 +87,7 @@ class PayrollLavaDo:
                 frappe.enqueue(method='payroll_lavado.payroll_batch.create_resume_batch',
                                queue="long", timeout=36000000,
                                company=company, start_date=start_date,
-                               end_date=end_date, new_batch_id=new_batch_id)
+                               end_date=end_date, new_batch_id=new_batch_id, batch_options=batch_options)
                 print("added the  background job")
         except Exception as ex:
             print(str(ex))
@@ -92,14 +99,16 @@ class PayrollLavaDo:
     def get_penalty_policy_groups():
         if PayrollLavaDo.penalty_policy_groups:
             PayrollLavaDo.penalty_policy_groups.clear()
-        PayrollLavaDo.penalty_policy_groups = frappe.get_all("Lava Penalty Group", order_by='title', fields=["*"])
+        PayrollLavaDo.penalty_policy_groups = frappe.get_all("Lava Penalty Group",
+                                                             order_by='title', fields=["*"],
+                                                             limit_page_length=100)
         return
 
     @staticmethod
     def get_shift_types():
         if PayrollLavaDo.shift_types:
             PayrollLavaDo.shift_types.clear()
-        PayrollLavaDo.shift_types = frappe.get_all("Shift Type", fields=["*"])
+        PayrollLavaDo.shift_types = frappe.get_all("Shift Type", fields=["*"], limit_page_length=100)
         return
 
     @staticmethod
@@ -188,7 +197,8 @@ class PayrollLavaDo:
             last_parent_policy['designations'].append({'designation_name': row.designation_name})
 
     @staticmethod
-    def create_resume_batch_process(company: str, start_date: date, end_date: date, new_batch_id: str):
+    def create_resume_batch_process(company: str, start_date: date, end_date: date,
+                                    new_batch_id: str, batch_options):
         frappe.publish_realtime('msgprint', 'Starting create_resume_batch_process...')
         # this is the main entry point of the entire batch, and it can be called from a UI screen on desk,
         # or from a background scheduled job
@@ -224,7 +234,7 @@ class PayrollLavaDo:
             action="Decide to resume or create a new Batch Process for Company: {}, start date: {},"
                    "end date: {}".format(company, start_date, end_date))
         progress_batches = frappe.get_all("Lava Payroll LavaDo Batch", {"status": "In Progress", "company": company},
-                                          ['name', 'start_date', 'end_date'])
+                                          ['name', 'start_date', 'end_date'], imit_page_length=20)
         if len(progress_batches) > 1:
             exp_msg = _("Company {} has more than a batch in progress, Please check".format(company))
             frappe.log_error(message="Error message: '{}'".format(exp_msg), title=PayrollLavaDo.batch_process_title)
@@ -304,20 +314,18 @@ class PayrollLavaDo:
 
     @staticmethod
     def delete_employee_batch_records(employee_id: str, batch_id: str):
-        batch_related_doctypes = ["TimeSheet", "Lava Penalty Record", "Additional Salary"]
-        employee_batch_records = frappe.get_all("Lava Batch Object",
-                                                {'object_type': ['in', batch_related_doctypes],
-                                                 'batch_id': batch_id},
-                                                ['object_type', 'object_id'])
-        for record in employee_batch_records:
-            if record.object_type.lower() == "timesheet":
-                frappe.delete_doc(doctype="Timesheet", name=record.object_id, force=1)
-            elif record.object_type == "Lava Penalty Record":
-                frappe.delete_doc(doctype="Lava Penalty Record", name=record.object_id, force=1)
-            elif record.object_type == "Additional Salary":
-                frappe.delete_doc(doctype="Additional Salary", name=record.object_id, force=1)
-
-            frappe.delete_doc(doctype=record.object_type, name=record.object_id, force=1)
+        batch_related_doctypes = ["Timesheet", "Lava Penalty Record", "Additional Salary"]
+        get_more_records = True
+        while get_more_records:
+            employee_batch_records = frappe.get_all("Lava Batch Object",
+                                                    {'object_type': ['in', batch_related_doctypes],
+                                                     'batch_id': batch_id},
+                                                    ['object_type', 'object_id'], limit_page_length=100)
+            if len(employee_batch_records) > 0:
+                for record in employee_batch_records:
+                    frappe.delete_doc(doctype=record.object_type, name=record.object_id, force=1)
+            else:
+                get_more_records = False
 
         frappe.delete_doc(doctype="Employee", name=employee_id, force=1)
 
@@ -409,7 +417,7 @@ class PayrollLavaDo:
         existing_penalty_records = frappe.get_all("Lava Penalty Record",
                                                   filters={"employee": employee_changelog_record.employee,
                                                            "penalty_date": ['=', attendance.attendance_date]},
-                                                  order_by='modified')
+                                                  order_by='modified', imit_page_length=100)
 
         for existing_penalty_record in existing_penalty_records:
             policy = PayrollLavaDo.get_policy_by_id(existing_penalty_record.penalty_policy, policies=applied_policies)
@@ -487,7 +495,7 @@ class PayrollLavaDo:
                                                                     "penalty_date": ['>=', from_date],
                                                                     "policy_subgroup": policy_subgroup
                                                                 },
-                                                                order_by='penalty_date')
+                                                                order_by='penalty_date', imit_page_length=100)
         return len(penalty_records_number_within_duration)
 
     @staticmethod
@@ -504,7 +512,7 @@ class PayrollLavaDo:
     def get_attendance_list(employee: str, start_date: date, end_date: date):
         return frappe.get_all("Attendance", filters=
         {'employee': employee, 'attendance_date': ['between', (start_date, end_date)]},
-                              fields=['*'])
+                              fields=['*'], imit_page_length=100)
 
     @staticmethod
     def create_employees_first_changelog_records(company: str):
@@ -563,7 +571,7 @@ class PayrollLavaDo:
     def get_employee_changelog_records(max_date: date, employee_id: str):
         employee_changelogs = frappe.get_all("Lava Employee Payroll Changelog",
                                              filters={'employee': employee_id, 'change_date': ['<=', max_date]},
-                                             order_by="change_date desc", fields=['*'])
+                                             order_by="change_date desc", fields=['*'], imit_page_length=100)
         return employee_changelogs
 
     @staticmethod
@@ -634,7 +642,7 @@ class PayrollLavaDo:
                     attendance_doc.docstatus != 1:
                 if attendance_doc.late_entry:
                     attendance_doc.lava_entry_duration_difference = time_diff_in_hours(
-                            get_datetime(attendance_doc.in_time), get_datetime(shift_type.start_time)) * 60
+                        get_datetime(attendance_doc.in_time), get_datetime(shift_type.start_time)) * 60
                 if attendance_doc.early_exit:
                     attendance_doc.lava_exit_duration_difference = time_diff_in_hours(
                         get_datetime(shift_type.end_time, attendance_doc.out_time)) * 60
@@ -746,14 +754,18 @@ def run_payroll_lavado_batch(doc: str):
     company = doc_dict['company']
     start_date = getdate(doc_dict['start_date'])
     end_date = getdate(doc_dict['end_date'])
-    # TODO: create new doc
-    new_batch_id = doc_dict['name']
+    batch_options = {
+        "chk-clear-error-log-records": doc_dict['chk-clear-error-log-records'],
+        "chk-clear-action-log-records": doc_dict['chk_clear_action_log_records'],
+        "chk-batch-objects": doc_dict['chk_batch_objects']
+    }
     result_status = ""
     try:
         PayrollLavaDo.add_batch_to_background_jobs(company=company,
                                                    start_date=start_date,
                                                    end_date=end_date,
-                                                   new_batch_id=new_batch_id)
+                                                   new_batch_id="dummy id",
+                                                   batch_options=batch_options)
         result_status = "Success"
     except Exception as ex:
         result_status = f"Failed '{ex}'"

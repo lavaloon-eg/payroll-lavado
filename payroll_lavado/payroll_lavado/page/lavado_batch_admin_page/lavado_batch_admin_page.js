@@ -1,3 +1,4 @@
+
 frappe.pages['lavado_batch_admin_page'].on_page_load = function (wrapper) {
 	new MyPage(wrapper);
 }
@@ -7,29 +8,48 @@ MyPage = Class.extend({
 		this.page = frappe.ui.make_app_page({
 			parent: wrapper,
 			title: 'Payroll LavaDo Batch Manager',
-			single_column: true
+			single_column: false
 		});
 		this.make();
 	},
 	make: function () {
 		$(frappe.render_template("lavado_batch_admin_page", this)).appendTo(this.page.main);
-		$('#btn-run-batch').onclick(function(){
+        $(document).ready(function(){
+             frappe.db.get_list('Company', {
+                    fields: ['name']
+                }).then(records => {
+                    for (var counter in records){
+                        let option = new Option(records[counter]['name'], records[counter]['name']);
+                        $("#select-company").append(option);
+                    }
+                });
+            });
 
-		    //FIXME: reading html controls
-		    let batch_company = $("#select-company").value
-		    let batch_start_date = $("#batch-start-date").value
-		    let batch_end_date = $("#batch-end-date").value
-		    let chk-clear-error-log-records = $("#chk-clear-error-log-records").checked
-		    let chk-clear-action-log-records = $("#chk-clear-action-log-records").checked
-		    let chk-batch-objects = $("#chk-batch-objects").checked
-		    //TODO: validate data
+		$('#btn-run-batch').click(function(){
+		    let batch_company = $("#select-company :selected").text();
+		    let batch_start_date = new Date($('#batch-start-date').val());
+		    let batch_end_date = new Date($('#batch-end-date').val());
+		    let chk_clear_error_log_records = $("#chk-clear-error-log-records").checked;
+		    let chk_clear_action_log_records = $("#chk-clear-action-log-records").checked;
+		    let chk_batch_objects = $("#chk-batch-objects").checked;
+		    let error_msg = "";
+		    if (isNaN(batch_end_date) || isNaN(batch_start_date)){
+		        error_msg += ", select dates";
+		    }
+		    if (batch_end_date <= batch_start_date){
+		        error_msg += ", end date must be > start date";
+		    }
+		    if (error_msg.length >0){
+		        frappe.msgprint(__("error message: " + error_msg));
+		        return;
+		    }
 		    let doc_data={
 		        "company": batch_company,
 		        "start_date": batch_start_date,
 		        "end_date": batch_end_date,
-		        "chk-clear-error-log-records": chk-clear-error-log-records,
-		        "chk-clear-action-log-records": chk-clear-action-log-records,
-		        "chk-batch-objects": chk-batch-objects
+		        "chk-clear-error-log-records": chk_clear_error_log_records,
+		        "chk-clear-action-log-records": chk_clear_action_log_records,
+		        "chk-batch-objects": chk_batch_objects
 		    }
     		run_batch(doc_data);
 		 });
@@ -40,7 +60,7 @@ MyPage = Class.extend({
 function run_batch(doc_data) {
 	frappe.call({
 		method:
-			"payroll_lavado.payroll_lavado.page.lavado_batch_admin_page.lavado_batch_admin_page.run_payroll_lavado_batch",
+			"payroll_lavado.payroll_batch.run_payroll_lavado_batch",
 		args: {
 			doc: doc_data,
 		},

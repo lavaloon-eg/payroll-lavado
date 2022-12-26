@@ -7,9 +7,9 @@
  "modified": "2022-12-25 13:29:02.454830",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
- "name": "lavado_batch_admin_p",
+ "name": "lavado_batch_admin_page",
  "owner": "Administrator",
- "page_name": "lavado_batch_admin_p",
+ "page_name": "lavado_batch_admin_page",
  "roles": [
   {
    "role": "System Manager"
