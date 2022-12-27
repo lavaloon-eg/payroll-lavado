@@ -58,9 +58,18 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Batch Administration",
+   "link_to": "lavado_batch_admin_page",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2022-12-11 16:36:31.715310",
+ "modified": "2022-12-27 20:50:58.295778",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Payroll LavaDo",

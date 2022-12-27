@@ -29,9 +29,10 @@ MyPage = Class.extend({
 		    let batch_company = $("#select-company :selected").text();
 		    let batch_start_date = new Date($('#batch-start-date').val());
 		    let batch_end_date = new Date($('#batch-end-date').val());
-		    let chk_clear_error_log_records = $("#chk-clear-error-log-records").checked;
-		    let chk_clear_action_log_records = $("#chk-clear-action-log-records").checked;
-		    let chk_batch_objects = $("#chk-batch-objects").checked;
+		    let chk_clear_error_log_records =(($("#chk-clear-error-log-records").is(":checked"))? 1 : 0);
+		    let chk_clear_action_log_records = (($("#chk-clear-action-log-records").is(":checked"))? 1 : 0);
+		    let chk_biometric_process = (($("#chk-biometric-process").is(":checked"))? 1 : 0);
+		    let chk_batch_objects = (($("#chk-batch-objects").is(":checked"))? 1 : 0);
 		    let error_msg = "";
 		    if (isNaN(batch_end_date) || isNaN(batch_start_date)){
 		        error_msg += ", select dates";
@@ -49,7 +50,8 @@ MyPage = Class.extend({
 		        "end_date": batch_end_date,
 		        "chk-clear-error-log-records": chk_clear_error_log_records,
 		        "chk-clear-action-log-records": chk_clear_action_log_records,
-		        "chk-batch-objects": chk_batch_objects
+		        "chk-batch-objects": chk_batch_objects,
+		        "chk-biometric-process": chk_biometric_process
 		    }
     		run_batch(doc_data);
 		 });
