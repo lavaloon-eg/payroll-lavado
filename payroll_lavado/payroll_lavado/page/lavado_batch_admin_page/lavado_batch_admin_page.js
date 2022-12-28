@@ -103,21 +103,40 @@ function get_batches(){
 }
 
 function render_batches_data(records){
-    console.log(records)
-    let table_batches = $("#table-batches");
-    table_batches.innerHTML = ``;
-    let first_record = records[0];
-    table_batches.append(
-    `<thead>
-       <tr id='tr-head'>`);
-    for(let key of Object.keys(first_record)){
-        $("#tr-head").append(`<th class="col grid-static-col col-xs-4 ">${key}</th>`);
+
+    if ($("#tbody-batches").length ){
+        if ($("#tbody-batches").rows)
+            for (let i=0;i< $("#tbody-batches").rows.length ;i++){
+                $('#tbody-batches').deleteRow(i);
+            }
     }
-    $("#table-batches").append(`</thead><tbody id="tbody-batches">`);
-    for (var counter of records){
-        let id = "tr{counter.batch_id}"
-        $('#tbody-batches').append("<tr id=`tr${counter.batch_id}>`");
-       $(`#tr${counter.batch_id}`).append(`<td>${counter.batch_id}</td>`);
+    if (records.length == 0){
+        return;
     }
-    $("#table-batches").append(`</tbody>`)
+    if (!$("#tr-head").length){
+        let first_record = records[0];
+        $("#table-batches").append('<thead>').append("<tr id='tr-head'>");
+
+        for(let key of Object.keys(first_record)){
+            $("#tr-head").append(`<th class="col grid-static-col col-xs-4 ">${key}</th>`);
+        }
+        $("#table-batches").append('<tbody id="tbody-batches">');
+    }
+    rowIndex = 0;
+    for (var record of records){
+       console.log(record)
+       if ($(`#tr${rowIndex}`).length)
+       {
+            $(`#tr${rowIndex}`).remove();
+       }
+       $('#tbody-batches').append(`<tr id=tr${rowIndex}>`);
+       $(`#tr${rowIndex}`).append(`<td>${record.batch_id}</td>`);
+       $(`#tr${rowIndex}`).append(`<td>${record.company}</td>`);
+       $(`#tr${rowIndex}`).append(`<td>${record.start_date}</td>`);
+       $(`#tr${rowIndex}`).append(`<td>${record.end_Date}</td>`);       //TODO: fix field name
+       $(`#tr${rowIndex}`).append(`<td>${record.status}</td>`);
+       $(`#tr${rowIndex}`).append(`<td>${record.batch_process_start_time}</td>`);
+       $(`#tr${rowIndex}`).append(`<td>${record.batch_process_end_time}</td>`);
+       rowIndex += 1;
+    }
 }
