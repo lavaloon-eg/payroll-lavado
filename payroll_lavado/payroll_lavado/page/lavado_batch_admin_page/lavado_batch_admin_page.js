@@ -24,7 +24,12 @@ MyPage = Class.extend({
                     }
                 });
             });
-
+        $('#select-company').change(function(){
+            get_batches();
+        });
+        $('#btn-refresh').click(function(){
+            get_batches();
+        });
 		$('#btn-run-batch').click(function(){
 		    let batch_company = $("#select-company :selected").text();
 		    let batch_start_date = new Date($('#batch-start-date').val());
@@ -81,26 +86,38 @@ function get_batches(){
     doc_data = {"company": batch_company};
     frappe.call({
             method:
-                "payroll_lavado.payroll_lavado.payroll_batch.page.lavado_batch_admin_page.lavado_batch_admin_page.get_payroll_lavado_batches",
+                "payroll_lavado.payroll_lavado.page.lavado_batch_admin_page.lavado_batch_admin_page.get_payroll_lavado_batches",
             args: {
-                doc: doc_data,
+                filters: doc_data,
             },
             callback: function (r) {
-            if (r.message == "Success") {
-                render_batches_data(r.result)
-                frappe.msgprint(__("batched have been loaded"));
+            if (r.message.message == "Success") {
+                if(r.message.result){
+                    render_batches_data(r.message.result);
+                }
             } else {
-                frappe.throw(__(r.message));
+                frappe.throw(__(r.message.message));
             }
             }
         })
 }
 
 function render_batches_data(records){
+    console.log(records)
     let table_batches = $("#table-batches");
-
-    for (var counter in records){
-                        //let option = new Option(records[counter]['name'], records[counter]['name']);
-                        //$("#select-company").append(option);
-                    }
+    table_batches.innerHTML = ``;
+    let first_record = records[0];
+    table_batches.append(
+    `<thead>
+       <tr id='tr-head'>`);
+    for(let key of Object.keys(first_record)){
+        $("#tr-head").append(`<th class="col grid-static-col col-xs-4 ">${key}</th>`);
+    }
+    $("#table-batches").append(`</thead><tbody id="tbody-batches">`);
+    for (var counter of records){
+        let id = "tr{counter.batch_id}"
+        $('#tbody-batches').append("<tr id=`tr${counter.batch_id}>`");
+       $(`#tr${counter.batch_id}`).append(`<td>${counter.batch_id}</td>`);
+    }
+    $("#table-batches").append(`</tbody>`)
 }

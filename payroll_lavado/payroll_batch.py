@@ -15,6 +15,7 @@ from lava_custom.lava_custom.doctype.lava_biometric_attendance_record import lav
 # TODO: Add hook on employee & salary structure assignment on save event :
 #  create 'employee chengelog record' with the new data
 # TODO: Check if the employee transfer updates the employee record; then no need to ad hook into employee transfer too
+#TODO: Remove 'lava net working hours from lava_custom and all the code using.
 
 
 def create_resume_batch(company: str, start_date: date, end_date: date, new_batch_id: str, batch_options):
@@ -684,22 +685,22 @@ class PayrollLavaDo:
         if attendance_doc.shift:
             shift_type = PayrollLavaDo.get_shift_type_by_id(attendance.shift)
             if attendance_doc.status != 'Absent' and attendance_doc.status != 'On Leave' and \
-                    attendance_doc.docstatus != 1:
+                    attendance_doc.docstatus == 1:
                 if attendance_doc.late_entry:
                     attendance_doc.lava_entry_duration_difference = time_diff_in_seconds(
                         get_datetime(attendance_doc.in_time), get_datetime(shift_type.start_time)) / 60
                 if attendance_doc.early_exit:
                     attendance_doc.lava_exit_duration_difference = time_diff_in_seconds(
-                        get_datetime(shift_type.end_time, attendance_doc.out_time)) / 60
+                        get_datetime(shift_type.end_time), attendance_doc.out_time) / 60
             shift_time_diff = time_diff_in_seconds(shift_type.end_time, shift_type.start_time) / 60
             if shift_time_diff >= 0:
                 attendance_doc.lava_planned_working_hours = time_diff_in_hours(shift_type.end_time,
                                                                                shift_type.start_time)
             else:
                 attendance_doc.lava_planned_working_hours = time_diff_in_hours(to_timedelta("23:59:59"),
-                                                                               shift_type.start_time) / 3600
+                                                                               shift_type.start_time)
                 attendance_doc.lava_planned_working_hours += time_diff_in_hours(shift_type.end_time,
-                                                                                to_timedelta("00:00:00")) / 3600
+                                                                                to_timedelta("00:00:00"))
             attendance_doc.save(ignore_permissions=True)
 
     @staticmethod
