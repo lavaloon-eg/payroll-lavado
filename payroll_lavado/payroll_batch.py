@@ -3,12 +3,12 @@ import json
 from datetime import date
 
 import frappe
-from frappe.utils import now, time_diff_in_hours, get_datetime, getdate, time_diff_in_seconds, to_timedelta
-# noinspection PyProtectedMember
-from frappe import _dict as fdict
 # noinspection PyProtectedMember
 from frappe import _
-from lava_custom.lava_custom.doctype.lava_biometric_attendance_record import lava_biometric_attendance_record
+# noinspection PyProtectedMember
+from frappe import _dict as fdict
+from frappe.utils import time_diff_in_hours, get_datetime, getdate, time_diff_in_seconds, to_timedelta
+from pymysql import ProgrammingError
 
 
 # from frappe.utils.logger import get_logger
@@ -42,12 +42,22 @@ class PayrollLavaDo:
         limit_page_start = 0
         limit_page_length = 100
         while True:
-            checkin_records = frappe.get_all("Lava Biometric Attendance Record",
-                                             {
-                                                 'status': ["!=", 'Processed'],
-                                                 'timestamp': ["between", [start_date.strftime('%Y-%m-%d'),
-                                                                           end_date.strftime('%Y-%m-%d')]]
-                                             }, limit_start=limit_page_start, limit_page_length=limit_page_length)
+            try:
+                checkin_records = frappe.get_all("Lava Biometric Attendance Record",
+                                                 {
+                                                     'status': ["!=", 'Processed'],
+                                                     'timestamp': ["between", [start_date.strftime('%Y-%m-%d'),
+                                                                               end_date.strftime('%Y-%m-%d')]]
+                                                 }, limit_start=limit_page_start, limit_page_length=limit_page_length)
+            except ProgrammingError as e:
+                if e.args != ('DocType', 'Lava Biometric Attendance Record'):
+                    raise
+                frappe.log_error(message="'Lava Biometric Attendance Record' doctype not found. "
+                                         "Make sure lava_custom is installed or disable biometric attendance "
+                                         "processing",
+                                 title=PayrollLavaDo.batch_biometric_process_title)
+                break
+
             if not checkin_records:
                 break
 
@@ -91,15 +101,16 @@ class PayrollLavaDo:
 
     @staticmethod
     def update_last_running_batch_in_progress(batch_new_status: str, batch_id=None):
-        batch_doc = None
         try:
             if batch_id:
                 batch_doc = frappe.get_doc("Lava Payroll LavaDo Batch", batch_id)
             else:
-                batch_docs = frappe.get_all("Lava Payroll LavaDo Batch", filters={"status": "In Progress"},
-                                            order_by='modified desc', limit_page_legnth=1)
-                if batch_docs:
-                    batch_doc = frappe.get_doc("Lava Payroll LavaDo Batch", batch_docs[0])
+                batches = frappe.get_all("Lava Payroll LavaDo Batch", filters={"status": "In Progress"},
+                                         order_by='modified desc', limit_page_length=1)
+                if not batches:
+                    raise Exception("Expected at least one in-progress payroll batch but found none")
+
+                batch_doc = frappe.get_doc("Lava Payroll LavaDo Batch", batches[0].name)
 
             batch_doc.status = batch_new_status
             batch_doc.batch_process_end_time = datetime.datetime.now()
