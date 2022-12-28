@@ -53,7 +53,8 @@ class PayrollLavaDo:
             limit_page_start += limit_page_length
             for checkin_record in checkin_records:
                 try:
-                    checkin_record.process()
+                    checkin_doc = frappe.get_doc("Lava Biometric Attendance Record", checkin_record.name)
+                    checkin_doc.process()
                 except Exception as ex:
                     frappe.log_error(message="record id: '{}', employee_biometric_id: '{}'. Error: '{}'".format(
                         checkin_record.name, checkin_record.employee_biometric_id, str(ex)),
@@ -97,13 +98,14 @@ class PayrollLavaDo:
                 batch_docs = frappe.get_all("Lava Payroll LavaDo Batch", filters={"status": "In Progress"},
                                             order_by='modified desc', limit_page_legnth=1)
                 if batch_docs:
-                    batch_doc = batch_docs[0]
+                    batch_doc = frappe.get_doc("Lava Payroll LavaDo Batch", batch_docs[0])
 
             batch_doc.status = batch_new_status
             batch_doc.batch_process_end_time = datetime.datetime.now()
             batch_doc.save()
         except Exception as ex:
-            pass
+            frappe.log_error(message="update_last_running_batch_in_progress, error:".format(str(ex)),
+                             title=PayrollLavaDo.batch_process_title)
 
     @staticmethod
     def get_penalty_policy_groups():
