@@ -75,3 +75,32 @@ function run_batch(doc_data) {
 		}
 	})
 }
+
+function get_batches(){
+    let batch_company = $("#select-company :selected").text();
+    doc_data = {"company": batch_company};
+    frappe.call({
+            method:
+                "payroll_lavado.payroll_lavado.payroll_batch.page.lavado_batch_admin_page.lavado_batch_admin_page.get_payroll_lavado_batches",
+            args: {
+                doc: doc_data,
+            },
+            callback: function (r) {
+            if (r.message == "Success") {
+                render_batches_data(r.result)
+                frappe.msgprint(__("batched have been loaded"));
+            } else {
+                frappe.throw(__(r.message));
+            }
+            }
+        })
+}
+
+function render_batches_data(records){
+    let table_batches = $("#table-batches");
+
+    for (var counter in records){
+                        //let option = new Option(records[counter]['name'], records[counter]['name']);
+                        //$("#select-company").append(option);
+                    }
+}
