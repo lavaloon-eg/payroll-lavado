@@ -4,4 +4,4 @@ Define & Apply Payroll Penalties
 
 #### License
 
-Proprietary. Copyright © LavaLoon
+[GNU Affero General Public License v3.0](https://github.com/lavaloon-eg/payroll-lavado/blob/master/license.txt)
