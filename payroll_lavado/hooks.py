@@ -2,12 +2,12 @@ from . import __version__ as app_version
 
 app_name = "payroll_lavado"
 app_title = "Payroll Lavado"
-app_publisher = "Lavaloon"
-app_description = "Define & APlly Payroll Penalties"
+app_publisher = "LavaLoon"
+app_description = "Define & Apply Payroll Penalties"
 app_icon = "octicon octicon-file-directory"
 app_color = "grey"
 app_email = "sales@lavaloon.com"
-app_license = "Proprietary. Copyright © LavaLoon"
+app_license = "GNU Affero General Public License v3.0"
 
 # Includes in <head>
 # ------------------
