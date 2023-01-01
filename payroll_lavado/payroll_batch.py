@@ -399,7 +399,7 @@ class PayrollLavaDo:
         if invalid_shift_types:
             invalid_shift_types_ids = ""
             for invalid_shift_type in invalid_shift_types:
-                invalid_shift_types_ids += "," + invalid_shift_type.name
+                invalid_shift_types_ids += "," + invalid_shift_type
             exp_msg = "Shift types ({}) have missing data".format(invalid_shift_types_ids)
             frappe.log_error(message="Error message: '{}'".format(exp_msg), title=PayrollLavaDo.batch_process_title)
 
