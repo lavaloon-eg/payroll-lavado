@@ -1,5 +1,6 @@
 import datetime
 import json
+import traceback
 from datetime import date
 
 import frappe
@@ -9,6 +10,8 @@ from frappe import _
 from frappe import _dict as fdict
 from frappe.utils import time_diff_in_hours, get_datetime, getdate, time_diff_in_seconds, to_timedelta
 from pymysql import ProgrammingError
+
+from frappe.utils.logger import get_logger
 
 
 # from frappe.utils.logger import get_logger
@@ -26,6 +29,8 @@ def create_resume_batch(company: str, start_date: date, end_date: date, new_batc
     except Exception as ex:
         frappe.log_error(message="Create/resume batch; Error message: '{}'".format(str(ex)),
                          title=PayrollLavaDo.batch_process_title)
+        payroll_logger = get_logger("payroll_lavado")
+        payroll_logger.error(traceback.format_exc())
 
 
 class PayrollLavaDo:
