@@ -1,6 +1,5 @@
 import datetime
 import json
-import traceback
 from datetime import date
 
 import frappe
@@ -11,28 +10,26 @@ from frappe import _dict as fdict
 from frappe.utils import time_diff_in_hours, get_datetime, getdate, time_diff_in_seconds, to_timedelta
 from pymysql import ProgrammingError
 
-from frappe.utils.logger import get_logger
-
 
 # from frappe.utils.logger import get_logger
 # TODO: Add hook on employee & salary structure assignment on save event :
 #  create 'employee chengelog record' with the new data
 # TODO: Check if the employee transfer updates the employee record; then no need to ad hook into employee transfer too
-#TODO: Remove 'lava net working hours from lava_custom and all the code using.
+# TODO: Remove 'lava net working hours from lava_custom and all the code using.
 
 
 def create_resume_batch(company: str, start_date: date, end_date: date, new_batch_id: str, batch_options):
+    # noinspection PyBroadException
     try:
         PayrollLavaDo.create_resume_batch_process(company=company, start_date=start_date,
                                                   end_date=end_date, new_batch_id=new_batch_id,
                                                   batch_options=batch_options)
     except Exception as ex:
-        frappe.log_error(message="Create/resume batch; Error message: '{}'".format(str(ex)),
+        frappe.log_error(message="Create/resume batch; Error message: '{}'".format(format_exception(ex)),
                          title=PayrollLavaDo.batch_process_title)
-        payroll_logger = get_logger("payroll_lavado")
-        payroll_logger.error(traceback.format_exc())
 
 
+# noinspection PyBroadException
 class PayrollLavaDo:
     penalty_policy_groups = []
     penalty_policies = []
@@ -54,8 +51,8 @@ class PayrollLavaDo:
                                                      'timestamp': ["between", [start_date.strftime('%Y-%m-%d'),
                                                                                end_date.strftime('%Y-%m-%d')]]
                                                  }, limit_start=limit_page_start, limit_page_length=limit_page_length)
-            except ProgrammingError as e:
-                if e.args != ('DocType', 'Lava Biometric Attendance Record'):
+            except ProgrammingError as ex:
+                if ex.args != ('DocType', 'Lava Biometric Attendance Record'):
                     raise
                 frappe.log_error(message="'Lava Biometric Attendance Record' doctype not found. "
                                          "Make sure lava_custom is installed or disable biometric attendance "
@@ -73,7 +70,7 @@ class PayrollLavaDo:
                     checkin_doc.process()
                 except Exception as ex:
                     frappe.log_error(message="record id: '{}', employee_biometric_id: '{}'. Error: '{}'".format(
-                        checkin_record.name, checkin_record.employee_biometric_id, str(ex)),
+                        checkin_record.name, checkin_record.employee_biometric_id, format_exception(ex)),
                         title=PayrollLavaDo.batch_biometric_process_title)
 
     @staticmethod
@@ -101,7 +98,8 @@ class PayrollLavaDo:
         except Exception as ex:
             PayrollLavaDo.update_last_running_batch_in_progress(batch_new_status="Failed")
             frappe.log_error(
-                message="add the background job or run direct process; Error message: '{}'".format(str(ex)),
+                message="add the background job or run direct process; Error message: '{}'".format(
+                    format_exception(ex)),
                 title=PayrollLavaDo.batch_process_title)
 
     @staticmethod
@@ -121,7 +119,7 @@ class PayrollLavaDo:
             batch_doc.batch_process_end_time = datetime.datetime.now()
             batch_doc.save()
         except Exception as ex:
-            frappe.log_error(message="update_last_running_batch_in_progress, error:".format(str(ex)),
+            frappe.log_error(message="update_last_running_batch_in_progress, error: {}".format(format_exception(ex)),
                              title=PayrollLavaDo.batch_process_title)
 
     @staticmethod
@@ -277,7 +275,7 @@ class PayrollLavaDo:
             PayrollLavaDo.add_action_log(
                 action="Due to the batches validation issue, exit the Batch Process for Company: {}, start date: {}, "
                        "end date: {}".format(company, start_date, end_date))
-            frappe.log_error(message="validate_shift_types; Error message: '{}'".format(str(ex)),
+            frappe.log_error(message="validate_shift_types; Error message: '{}'".format(format_exception(ex)),
                              title=PayrollLavaDo.batch_process_title)
 
         PayrollLavaDo.create_employees_first_changelog_records(company)
@@ -345,7 +343,7 @@ class PayrollLavaDo:
                 except Exception as ex:
                     frappe.log_error(
                         message="Auto attendance of Shift Type: '{}' Error message: '{}'".format(shift_type.name,
-                                                                                                 str(ex)),
+                                                                                                 format_exception(ex)),
                         title=PayrollLavaDo.batch_process_title)
 
         PayrollLavaDo.process_employees(batch_id, company, start_date, end_date, last_processed_employee_id)
@@ -441,7 +439,7 @@ class PayrollLavaDo:
                 except Exception as ex:
                     frappe.log_error(message="calc_attendance_working_hours_breakdowns:"
                                              " Employee: {}, attendance ID: {}; Error message: '{}'".format(
-                        employee.employee_id, attendance.name, str(ex)),
+                        employee.employee_id, attendance.name, format_exception(ex)),
                         title=PayrollLavaDo.batch_process_title)
                 try:
                     PayrollLavaDo.add_timesheet_record(employee_timesheet=employee_timesheet,
@@ -451,7 +449,7 @@ class PayrollLavaDo:
                     frappe.log_error(message="add_timesheet_record:"
                                              " Employee: {}, attendance ID: {};"
                                              " Error message: '{}'".format(employee.employee_id,
-                                                                           attendance.name, str(ex)),
+                                                                           attendance.name, format_exception(ex)),
                                      title=PayrollLavaDo.batch_process_title)
                 employee_applied_policies = PayrollLavaDo.get_employee_applied_policies(
                     employee_changelog_record['designation'] if employee_changelog_record else "")
@@ -470,7 +468,7 @@ class PayrollLavaDo:
                             employee.employee_id, str(mandatory_error_ex)), title=PayrollLavaDo.batch_process_title)
                 except Exception as ex:
                     frappe.log_error(message="process employee: {}, save timesheet; Error message: '{}'".format(
-                        employee.employee_id, str(ex)), title=PayrollLavaDo.batch_process_title)
+                        employee.employee_id, format_exception(ex)), title=PayrollLavaDo.batch_process_title)
 
             PayrollLavaDo.add_action_log(
                 action="End process employee: {} for company: {} into batch : {}".format(employee.employee_id,
@@ -832,6 +830,13 @@ def run_payroll_lavado_batch(doc: str):
         result_status = "Success"
     except Exception as ex:
         result_status = f"Failed '{ex}'"
-        frappe.log_error(message=f"error occurred, '{ex}'", title=PayrollLavaDo.batch_process_title)
+        frappe.log_error(message=f"error occurred, '{format_exception(ex)}'", title=PayrollLavaDo.batch_process_title)
     finally:
         return result_status
+
+
+def format_exception(ex: Exception) -> str:
+    import traceback
+    error = str(ex)
+    trace = ''.join(traceback.format_exception(type(ex), ex, ex.__traceback__))
+    return f'{error}\n{trace}'
