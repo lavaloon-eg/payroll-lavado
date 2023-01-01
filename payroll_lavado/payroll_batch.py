@@ -32,7 +32,7 @@ class PayrollLavaDo:
     penalty_policy_groups = []
     penalty_policies = []
     shift_types = None
-    debug_mode = True  # TODO: make it False for production
+    debug_mode = False  # TODO: make it False for production
     payroll_activity_type = None
     batch_process_title = "LavaDo Payroll Process"
     batch_biometric_process_title = "run_biometric_attendance_records_process"
