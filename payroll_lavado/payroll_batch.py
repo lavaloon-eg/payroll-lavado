@@ -2,13 +2,14 @@ import datetime
 import json
 from datetime import date
 
+from pymysql import ProgrammingError
+
 import frappe
 # noinspection PyProtectedMember
 from frappe import _
 # noinspection PyProtectedMember
 from frappe import _dict as fdict
-from frappe.utils import time_diff_in_hours, get_datetime, getdate, time_diff_in_seconds, to_timedelta
-from pymysql import ProgrammingError
+from frappe.utils import time_diff_in_hours, getdate, time_diff_in_seconds, to_timedelta, get_datetime
 
 
 # from frappe.utils.logger import get_logger
@@ -454,10 +455,19 @@ class PayrollLavaDo:
                 employee_applied_policies = PayrollLavaDo.get_employee_applied_policies(
                     employee_changelog_record['designation'] if employee_changelog_record else "")
                 if employee_applied_policies:
+                    PayrollLavaDo.add_action_log(
+                        action="Start adding penalties for employee: {} for company: {} into batch : {}".format(
+                            employee.employee_id,
+                            company,
+                            batch_id))
                     PayrollLavaDo.add_penalties(employee_changelog_record, batch_id, attendance,
                                                 employee_applied_policies)
+            if attendance_list:
                 try:
+                    employee_timesheet.flags.ignore_permissions = 1
                     employee_timesheet.save(ignore_permissions=True)
+                    employee_timesheet.update_modified()
+
                     employee_timesheet.submit()
                     PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Timesheet",
                                                              object_id=employee_timesheet.name,
@@ -698,14 +708,16 @@ class PayrollLavaDo:
         attendance_doc = frappe.get_doc("Attendance", attendance.name)
         if attendance_doc.shift:
             shift_type = PayrollLavaDo.get_shift_type_by_id(attendance.shift)
-            if attendance_doc.status != 'Absent' and attendance_doc.status != 'On Leave' and \
-                    attendance_doc.docstatus == 1:
+            if attendance_doc.status != 'Absent' and attendance_doc.status != 'On Leave' and attendance_doc.docstatus == 1:
                 if attendance_doc.late_entry:
                     attendance_doc.lava_entry_duration_difference = time_diff_in_seconds(
-                        get_datetime(attendance_doc.in_time), get_datetime(shift_type.start_time)) / 60
+                        str(to_timedelta(attendance_doc.in_time)), str(to_timedelta(shift_type.start_time))) / 60
                 if attendance_doc.early_exit:
                     attendance_doc.lava_exit_duration_difference = time_diff_in_seconds(
-                        get_datetime(shift_type.end_time), attendance_doc.out_time) / 60
+                        str(to_timedelta(shift_type.end_time)), to_timedelta(attendance_doc.out_time)) / 60
+                if attendance_doc.lava_entry_duration_difference < 0 or attendance_doc.lava_exit_duration_difference < 0:
+                    frappe.log_error(title="Payroll LavaDo Process",
+                                     message="Negative time diff in attendance {}".format(attendance_doc.name))
             shift_time_diff = time_diff_in_seconds(shift_type.end_time, shift_type.start_time) / 60
             if shift_time_diff >= 0:
                 attendance_doc.lava_planned_working_hours = time_diff_in_hours(shift_type.end_time,
@@ -725,7 +737,7 @@ class PayrollLavaDo:
         frappe.db.delete("Timesheet Detail", filters={
             "parenttype": "Timesheet",
             "parentfield": "time_logs",
-            "parent": attendance.name,
+            "parent": employee_timesheet.name,
             "activity_type": activity_type,
             "from_time": attendance.in_time
         })
@@ -734,7 +746,7 @@ class PayrollLavaDo:
             "hours": attendance.working_hours,
             "expected_hours": attendance.lava_planned_working_hours,
             "from_time": attendance.in_time,
-            # "to_time": ,
+            "to_time": attendance.out_time,
             "description": "Created by Payroll LavaDo Batch Process"
         })
 

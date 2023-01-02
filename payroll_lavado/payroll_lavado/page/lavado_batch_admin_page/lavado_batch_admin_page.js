@@ -71,6 +71,7 @@ function run_batch(doc_data) {
 		args: {
 			doc: doc_data,
 		},
+		freeze: true,
 		callback: function (r) {
 		if (r.message == "Success") {
             frappe.msgprint(__("Ran batch"));
