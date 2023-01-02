@@ -16,7 +16,8 @@ def get_payroll_lavado_batches(filters: str = None):
                                     batch_process_end_time
                                     from `tabLava Payroll LavaDo Batch`
                                     where company = %(company)s
-                                    order by start_date desc, batch_process_start_time desc
+                                    order by start_date desc,
+                                    modified desc
                                     LIMIT 30
                                 """, {'company': filters_dict['company']}, as_dict=1)
         message = "Success"
