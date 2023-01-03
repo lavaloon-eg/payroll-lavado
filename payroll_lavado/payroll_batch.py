@@ -729,7 +729,7 @@ class PayrollLavaDo:
                 if attendance_doc.early_exit:
                     attendance_doc.lava_exit_duration_difference = int(time_diff_in_seconds(
                         str(shift_type.end_time),
-                        attendance_doc.outtime.strftime("%H:%M:%S")) / 60)
+                        attendance_doc.out_time.strftime("%H:%M:%S")) / 60)
                 if attendance_doc.lava_entry_duration_difference < 0 or attendance_doc.lava_exit_duration_difference < 0:
                     frappe.log_error(title=PayrollLavaDo.batch_process_title,
                                      message="Negative time diff in attendance {}".format(attendance_doc.name))
