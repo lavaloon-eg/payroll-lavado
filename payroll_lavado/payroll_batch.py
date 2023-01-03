@@ -35,7 +35,11 @@ class PayrollLavaDo:
     penalty_policy_groups = []
     penalty_policies = []
     shift_types = None
-    debug_mode = False  # TODO: make it False for production
+    debug_mode = False
+    clear_action_log_records = False
+    clear_error_log_records = False
+    clear_batch_objects = False
+    run_biometric_attendance_process = False
     payroll_activity_type = None
     batch_process_title = "LavaDo Payroll Process"
     batch_biometric_process_title = "run_biometric_attendance_records_process"
@@ -85,7 +89,9 @@ class PayrollLavaDo:
 
     @staticmethod
     def add_batch_to_background_jobs(company: str, start_date: date, end_date: date,
-                                     new_batch_id: str, batch_options=None):
+                                     new_batch_id: str, batch_options):
+        PayrollLavaDo.debug_mode = True if (batch_options["chk-batch-debug-mode"] == 1) else False
+
         try:
             if PayrollLavaDo.debug_mode:
                 PayrollLavaDo.create_resume_batch_process(company=company, start_date=start_date,
@@ -229,7 +235,14 @@ class PayrollLavaDo:
     @staticmethod
     def create_resume_batch_process(company: str, start_date: date, end_date: date,
                                     new_batch_id: str, batch_options):
-        if batch_options['chk-clear-action-log-records']:
+
+        PayrollLavaDo.debug_mode = True if (batch_options['chk-batch-debug-mode'] == 1) else False
+        PayrollLavaDo.clear_action_log_records = True if (batch_options['chk-clear-action-log-records'] == 1) else False
+        PayrollLavaDo.clear_error_log_records = True if (batch_options['chk-clear-error-log-records'] == 1) else False
+        PayrollLavaDo.clear_batch_objects = True if (batch_options['chk-batch-objects'] == 1) else False
+        PayrollLavaDo.run_biometric_attendance_process = True if (batch_options['chk-biometric-process'] == 1) else False
+
+        if PayrollLavaDo.clear_action_log_records:
             frappe.db.truncate("Lava Action Log")
             frappe.db.commit()
             PayrollLavaDo.add_action_log("cleared action log records", "Log")
@@ -238,7 +251,7 @@ class PayrollLavaDo:
         # this is the main entry point of the entire batch, and it can be called from a UI screen on desk,
         # or from a background scheduled job
 
-        if batch_options['chk-clear-error-log-records']:
+        if PayrollLavaDo.clear_error_log_records:
             PayrollLavaDo.add_action_log("clear old error records", "Log")
             frappe.db.sql(f"""
                             delete from `tabError Log` where method in (%(first_title)s,
@@ -248,13 +261,13 @@ class PayrollLavaDo:
             frappe.db.commit()
             PayrollLavaDo.add_action_log("cleared old error records", "Log")
 
-        if batch_options['chk-batch-objects']:
+        if PayrollLavaDo.clear_batch_objects:
             PayrollLavaDo.add_action_log("clear batch object records", "Log")
             frappe.db.truncate("Lava Batch Object")
             frappe.db.commit()
             PayrollLavaDo.add_action_log("cleared batch object records", "Log")
 
-        if batch_options['chk-biometric-process']:
+        if PayrollLavaDo.run_biometric_attendance_process:
             PayrollLavaDo.add_action_log("Start processing the new and failed biometric attendance records ", "Log")
             PayrollLavaDo.run_biometric_attendance_records_process(start_date=start_date, end_date=end_date)
             PayrollLavaDo.add_action_log("End processing the new and failed biometric attendance records ", "Log")
@@ -710,23 +723,28 @@ class PayrollLavaDo:
             shift_type = PayrollLavaDo.get_shift_type_by_id(attendance.shift)
             if attendance_doc.status != 'Absent' and attendance_doc.status != 'On Leave' and attendance_doc.docstatus == 1:
                 if attendance_doc.late_entry:
-                    attendance_doc.lava_entry_duration_difference = time_diff_in_seconds(
-                        str(to_timedelta(attendance_doc.in_time)), str(to_timedelta(shift_type.start_time))) / 60
+                    attendance_doc.lava_entry_duration_difference = int(time_diff_in_seconds(
+                        attendance_doc.in_time.strftime("%H:%M:%S"),
+                        str(shift_type.start_time)) / 60)
                 if attendance_doc.early_exit:
-                    attendance_doc.lava_exit_duration_difference = time_diff_in_seconds(
-                        str(to_timedelta(shift_type.end_time)), to_timedelta(attendance_doc.out_time)) / 60
+                    attendance_doc.lava_exit_duration_difference = int(time_diff_in_seconds(
+                        str(shift_type.end_time),
+                        attendance_doc.outtime.strftime("%H:%M:%S")) / 60)
                 if attendance_doc.lava_entry_duration_difference < 0 or attendance_doc.lava_exit_duration_difference < 0:
-                    frappe.log_error(title="Payroll LavaDo Process",
+                    frappe.log_error(title=PayrollLavaDo.batch_process_title,
                                      message="Negative time diff in attendance {}".format(attendance_doc.name))
-            shift_time_diff = time_diff_in_seconds(shift_type.end_time, shift_type.start_time) / 60
+            shift_time_diff = time_diff_in_seconds(str(shift_type.end_time),
+                                                   str(shift_type.start_time)) / 60
             if shift_time_diff >= 0:
                 attendance_doc.lava_planned_working_hours = time_diff_in_hours(shift_type.end_time,
                                                                                shift_type.start_time)
             else:
-                attendance_doc.lava_planned_working_hours = time_diff_in_hours(to_timedelta("23:59:59"),
-                                                                               shift_type.start_time)
-                attendance_doc.lava_planned_working_hours += time_diff_in_hours(shift_type.end_time,
-                                                                                to_timedelta("00:00:00"))
+                attendance_doc.lava_planned_working_hours = time_diff_in_hours(
+                            str(to_timedelta("23:59:59")),
+                            str(shift_type.start_time))
+                attendance_doc.lava_planned_working_hours += time_diff_in_hours(
+                            str(shift_type.end_time),
+                            str(to_timedelta("00:00:00")))
             attendance_doc.save(ignore_permissions=True)
 
     @staticmethod
@@ -814,7 +832,8 @@ class PayrollLavaDo:
         additional_salary_record.amount = penalty_record.penalty_amount
         additional_salary_record.reason = f"Apply policy {penalty_record.penalty_policy}," \
                                           f" occurrence number {penalty_record.occurrence_number}."
-        additional_salary_record.save(ignore_permissions=True)  # TODO: Submit
+        additional_salary_record.save(ignore_permissions=True)
+        additional_salary_record.submit()
         PayrollLavaDo.create_batch_object_record(batch_id=batch_id, object_type="Additional Salary",
                                                  object_id=additional_salary_record.name,
                                                  status="Created", notes="")
@@ -830,7 +849,8 @@ def run_payroll_lavado_batch(doc: str):
         "chk-clear-error-log-records": doc_dict['chk-clear-error-log-records'],
         "chk-clear-action-log-records": doc_dict['chk-clear-action-log-records'],
         "chk-batch-objects": doc_dict['chk-batch-objects'],
-        "chk-biometric-process": doc_dict['chk-biometric-process']
+        "chk-biometric-process": doc_dict['chk-biometric-process'],
+        "chk-batch-debug-mode": doc_dict['chk-batch-debug-mode']
     }
     result_status = ""
     try:
