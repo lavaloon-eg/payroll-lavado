@@ -17,7 +17,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Penalty Group",
+   "label": "Penalty Groups",
    "link_to": "Lava Penalty Group",
    "link_type": "DocType",
    "onboard": 0,
@@ -26,7 +26,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Penalty Policy",
+   "label": "Penalty Policies",
    "link_to": "Lava Penalty Policy",
    "link_type": "DocType",
    "onboard": 0,
@@ -67,9 +67,27 @@
    "link_type": "Page",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Penalty Records",
+   "link_to": "Lava Penalty Record",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Salary addions/deductions",
+   "link_to": "Additional Salary",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2022-12-27 20:50:58.295778",
+ "modified": "2023-01-04 22:35:30.624388",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Payroll LavaDo",
