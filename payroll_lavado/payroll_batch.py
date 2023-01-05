@@ -460,7 +460,12 @@ def process_employee(employee_id):
                                     employee_changelog_records=employee_changelog_records,
                                     employee_timesheet=employee_timesheet)
     if attendance_list:
-        save_employee_timesheet(employee_id=employee_id, employee_timesheet=employee_timesheet)
+        try:
+            save_employee_timesheet(employee_id=employee_id, employee_timesheet=employee_timesheet)
+        except Exception as ex:
+            if "is overlapping with"  in str(ex):
+                frappe.log_error(message=f"saving timesheet. Error: '{str(ex)}'",
+                                 title=batch_process_title)
 
     add_action_log(
         action="End process employee: {} for company: {} into batch : {}".format(employee_id,
@@ -532,7 +537,7 @@ def add_penalties(employee_changelog_record, attendance, applied_policies):
                                               order_by='modified', limit_page_length=100)
 
     for existing_penalty_record in existing_penalty_records:
-        policy = get_policy_by_id(existing_penalty_record.penalty_policy, policies=applied_policies)
+        policy = get_policy_by_id(existing_penalty_record.name, policies=applied_policies)
         if policy:
             get_policy_and_add_penalty_record(
                 employee_changelog_record=employee_changelog_record,
