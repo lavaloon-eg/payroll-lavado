@@ -182,7 +182,7 @@ def get_policy_by_filters(policies, group_name, subgroup_name, occurrence_number
     for policy in policies:
         if policy['penalty_group'].lower() == group_name.lower() and \
                 policy['policy_subgroup'].lower() == subgroup_name.lower() and \
-                policy['occurrence_number'] or 0 <= occurrence_number and \
+                policy['occurrence_number'] <= occurrence_number and \
                 policy['tolerance_duration'] < gap_duration_in_minutes:
             return policy
     return None
@@ -194,15 +194,12 @@ def get_penalty_policies(company):
         penalty_policies.clear()
     rows = frappe.db.sql("""SELECT 
                             p.name, p.title AS policy_title, p.penalty_group, p.occurrence_number,
-                            p.deduction_in_days, p. deduction_amount,
+                            p.deduction_in_days, p.deduction_amount,
                             p.penalty_subgroup,
                             p.tolerance_duration,
-                            d.designation AS designation_name,
                             g.deduction_rule, g.reset_duration
                         FROM 
                             `tabLava Penalty Policy` AS p 
-                        INNER JOIN `tabPolicy Designations` AS d
-                            ON p.name = d.parent
                         INNER JOIN `tabLava Penalty Group` AS g
                             ON p.penalty_group = g.name
                         WHERE
@@ -210,27 +207,37 @@ def get_penalty_policies(company):
                         ORDER BY p.penalty_group, p.penalty_subgroup, p.tolerance_duration desc,
                          p.occurrence_number desc
                             """, {'company': company}, as_dict=1)
-    last_parent_policy = None
     for row in rows:
-        if not last_parent_policy or last_parent_policy['policy_name'] != row.name:
-            last_parent_policy = {'policy_name': row.name,
-                                  'policy_title': row.policy_title,
-                                  'penalty_group': row.penalty_group.lower(),
-                                  'deduction_rule': row.deduction_rule.lower(),
-                                  'reset_duration': row.reset_duration,
-                                  'occurrence_number': row.occurence_number,
-                                  'policy_subgroup': row.penalty_subgroup.lower(),
-                                  'deduction_in_days': row.deduction_in_days,
-                                  'deduction_amount': row.deduction_amount,
-                                  'tolerance_duration': row.tolerance_duration,
-                                  'designations': []}
-            penalty_policies.append(last_parent_policy)
-        last_parent_policy['designations'].append({'designation_name': row.designation_name})
+        policy = fdict({'policy_name': row.name,
+                        'policy_title': row.policy_title,
+                        'penalty_group': row.penalty_group.lower(),
+                        'deduction_rule': row.deduction_rule.lower(),
+                        'reset_duration': row.reset_duration,
+                        'occurrence_number': row.occurrence_number,
+                        'policy_subgroup': row.penalty_subgroup.lower(),
+                        'deduction_in_days': row.deduction_in_days,
+                        'deduction_amount': row.deduction_amount,
+                        'tolerance_duration': row.tolerance_duration,
+                        'designations': []})
+        get_policy_designations(company=company, policy_obj=policy)
+        penalty_policies.append(policy)
+
+
+def get_policy_designations(company, policy_obj):
+    rows = frappe.db.sql("""SELECT 
+                                d.designation AS designation_name
+                            FROM 
+                               `tabPolicy Designations` AS d
+                            WHERE
+                                d.parent = %(policy_id)s
+                            ORDER BY designation
+                                """, {'policy_id': policy_obj.policy_name}, as_dict=1)
+    for row in rows:
+        policy_obj['designations'].append({'designation_name': row.designation_name})
 
 
 def create_resume_batch_process(company: str, start_date: date, end_date: date,
                                 new_batch_id: str, batch_options):
-
     global running_batch_company
     running_batch_company = company
     global running_batch_start_date
@@ -463,7 +470,7 @@ def process_employee(employee_id):
         try:
             save_employee_timesheet(employee_id=employee_id, employee_timesheet=employee_timesheet)
         except Exception as ex:
-            if "is overlapping with"  in str(ex):
+            if "is overlapping with" in str(ex):
                 frappe.log_error(message=f"saving timesheet. Error: '{str(ex)}'",
                                  title=batch_process_title)
 
