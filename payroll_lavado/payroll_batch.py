@@ -182,9 +182,13 @@ def get_policy_by_filters(policies, group_name, subgroup_name, occurrence_number
     for policy in policies:
         if policy['penalty_group'].lower() == group_name.lower() and \
                 policy['policy_subgroup'].lower() == subgroup_name.lower() and \
-                policy['occurrence_number'] <= occurrence_number and \
-                policy['tolerance_duration'] < gap_duration_in_minutes:
-            return policy
+                policy['occurrence_number'] <= occurrence_number:
+            if policy['policy_subgroup'].lower() == 'attendance check-in' or \
+                    policy['policy_subgroup'].lower() == 'attendance check-out':
+                if policy['tolerance_duration'] < gap_duration_in_minutes:
+                    return policy
+            else:
+                return policy
     return None
 
 
@@ -522,7 +526,7 @@ def save_employee_timesheet(employee_id, employee_timesheet):
     try:
         employee_timesheet.flags.ignore_permissions = 1
         employee_timesheet.save(ignore_permissions=True)
-        employee_timesheet.update_modified()
+        # employee_timesheet.update_modified()
 
         employee_timesheet.submit()
         create_batch_object_record(batch_id=running_batch_id, object_type="Timesheet",
@@ -533,8 +537,27 @@ def save_employee_timesheet(employee_id, employee_timesheet):
             frappe.log_error(message="process employee: {}, save timesheet; Error message: '{}'".format(
                 employee_id, str(mandatory_error_ex)), title=batch_process_title)
     except Exception as ex:
-        frappe.log_error(message="process employee: {}, save timesheet; Error message: '{}'".format(
-            employee_id, format_exception(ex)), title=batch_process_title)
+        # FIXME: fix fix the modified doc issue
+        timesheet_old_doc = employee_timesheet
+        employee_timesheet.reload()
+        timesheet_new_doc = employee_timesheet
+        changes = get_changes(doctype_name='Timesheet', doc_old_version=timesheet_old_doc,
+                              doc_new_version=timesheet_new_doc)
+        frappe.log_error(message=f"process employee: {employee_id}, "
+                                 f"save timesheet; Error message: '{format_exception(ex)}',"
+                                 f" changes: '{changes}'",
+                         title=batch_process_title)
+        employee_timesheet.submit()
+
+
+def get_changes(doctype_name: str, doc_old_version, doc_new_version):
+    meta_data = frappe.get_meta(doctype_name)
+    gap = ''
+    for field in meta_data.fields:
+        if doc_old_version[field] != doc_new_version[field]:
+            gap = gap + f"field: '{field}', old value: '{doc_old_version[field]}'," \
+                        f" new value: '{doc_new_version[field]}'" + "\n"
+    return gap
 
 
 def add_penalties(employee_changelog_record, attendance, applied_policies):
