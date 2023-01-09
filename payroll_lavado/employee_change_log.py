@@ -45,12 +45,12 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
     employee_change_log_record.company = employee_doc.company
     employee_change_log_record.designation = employee_doc.designation
     employee_change_log_record.change_date = datetime.date.today()
+    # TODO : Check branch field in Employee
+    employee_change_log_record.branch = employee_doc.branch
 
     employee_change_log_record.salary_structure = salary_structure_doc.name
     employee_change_log_record.hour_rate = salary_structure_doc.hour_rate or 0
 
     employee_change_log_record.shift_type = shift_type_doc.name
-    # TODO: To be check with Mr.Khaled attendance plan is not exist in Lava Employee Payroll Changelog or Shift type
-    # employee_change_log_record.attendance_plan = shift_type_doc.attendance_plan
 
     employee_change_log_record.insert(ignore_permissions=True)
