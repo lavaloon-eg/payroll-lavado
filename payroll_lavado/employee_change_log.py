@@ -7,9 +7,9 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
 
     if source_doctype.lower() == "employee":
         employee_old_doc = employee_doc.get_doc_before_save()
-        if employee_old_doc.designation.lower() == employee_doc.designation.lower() and \
-                employee_old_doc.company == employee_doc.company:
-            return
+        if employee_old_doc:
+            if employee_old_doc.designation.lower() == employee_doc.designation.lower() and employee_old_doc.company == employee_doc.company:
+                return
 
     salary_structure_doc = None
     if source_doctype.lower() == "salary structure assignment":
