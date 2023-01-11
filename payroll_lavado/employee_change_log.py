@@ -49,7 +49,7 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
     employee_change_log_record.branch = employee_doc.branch
 
     employee_change_log_record.salary_structure = salary_structure_doc.name
-    employee_change_log_record.hour_rate = salary_structure_doc.hour_rate or 0
+    employee_change_log_record.hourly_rate = salary_structure_doc.hour_rate or 0
 
     employee_change_log_record.shift_type = shift_type_doc.name
 

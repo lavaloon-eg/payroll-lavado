@@ -16,7 +16,9 @@
   "tolerance_duration",
   "company",
   "designations",
-  "penalty_subgroup"
+  "penalty_subgroup",
+  "salary_component",
+  "amended_from"
  ],
  "fields": [
   {
@@ -87,11 +89,32 @@
    "fieldtype": "Select",
    "label": "Penalty Subgroup",
    "options": "attendance check-out\nattendance check-in\nattendance absence\nother"
+  },
+  {
+   "fieldname": "salary_component",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Salary Component",
+   "options": "Salary Component",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Lava Penalty Policy",
+   "print_hide": 1,
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
- "modified": "2022-12-20 14:38:20.719262",
+ "modified": "2023-01-11 20:35:49.587610",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Penalty Policy",
