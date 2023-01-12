@@ -166,6 +166,10 @@ def get_shift_type_doc(shift_type_id):
 
 
 def get_policy_by_id(policy_id, policies=None):
+    if not policy_id:
+        frappe.log_error(message=f"get_policy_by_id: no policy id", title=batch_process_title)
+        return
+
     global penalty_policies
     if not policies:
         policies = penalty_policies
@@ -528,7 +532,9 @@ def process_employee_attendance(employee_id, attendance, employee_changelog_reco
 
 def save_employee_timesheet(employee_id, employee_timesheet):
     try:
-        employee_timesheet.flags.ignore_permissions = 1
+        if not hasattr(employee_timesheet, 'time_logs'):
+            return  # no need to save a timesheet without records
+
         employee_timesheet.save(ignore_permissions=True)
         # employee_timesheet.update_modified()
 
@@ -538,10 +544,10 @@ def save_employee_timesheet(employee_id, employee_timesheet):
                                    status="In progress", notes="")
     except frappe.MandatoryError as mandatory_error_ex:
         if "time_logs" in str(mandatory_error_ex):  # no need to save timesheet without time_logs
-            frappe.log_error(message="process employee: {}, save timesheet; Error message: '{}'".format(
+            frappe.log_error(message="process employee: {}, save timesheet; mandatory Error message: '{}'".format(
                 employee_id, str(mandatory_error_ex)), title=batch_process_title)
     except Exception as ex:
-        # FIXME: fix fix the modified doc issue
+        # FIXME: fix the modified doc issue
         timesheet_old_doc = employee_timesheet
         employee_timesheet.reload()
         timesheet_new_doc = employee_timesheet
@@ -567,18 +573,26 @@ def get_changes(doctype_name: str, doc_old_version, doc_new_version):
 def add_penalties(employee_changelog_record, attendance, applied_policies):
     existing_penalty_records = frappe.get_all("Lava Penalty Record",
                                               filters={"employee": employee_changelog_record.employee,
-                                                       "penalty_date": ['=', attendance.attendance_date]},
-                                              order_by='modified', limit_page_length=100)
+                                                       "penalty_date": ['=', attendance.attendance_date],
+                                                       "docstatus": 1},
+                                              fields=['*'],
+                                              order_by='penalty_date', limit_page_length=100)
 
     for existing_penalty_record in existing_penalty_records:
-        policy = get_policy_by_id(existing_penalty_record.name, policies=applied_policies)
+        policy = get_policy_by_id(existing_penalty_record.penalty_policy, policies=applied_policies)
         if policy:
             get_policy_and_add_penalty_record(
                 employee_changelog_record=employee_changelog_record,
                 attendance=attendance,
                 policy_group_obj=get_policy_group_by_id(policy.penalty_group),
                 policy_subgroup=policy.penalty_subgroup,
-                applied_policies=applied_policies)
+                applied_policies=applied_policies,
+                policy_id=existing_penalty_record.penalty_policy,
+                existing_penalty_record=existing_penalty_record)
+        else:
+            frappe.log_error(message=f"Cannot find policy '{existing_penalty_record.penalty_policy}' "
+                                     f"for penalty record '{existing_penalty_record.name}'",
+                             title=batch_process_title)
 
     if attendance.status.lower() == "absent":
         get_policy_and_add_penalty_record(
@@ -604,46 +618,75 @@ def add_penalties(employee_changelog_record, attendance, applied_policies):
 
 
 def get_policy_and_add_penalty_record(employee_changelog_record, attendance,
-                                      policy_group_obj, policy_subgroup, applied_policies):
+                                      policy_group_obj, policy_subgroup, applied_policies,
+                                      policy_id=None, existing_penalty_record=None):
     if not policy_group_obj:
-        frappe.throw("error: passing no policy group to function get_policy_and_add_penalty_record")
+        frappe.log_error(message=f"error: passing no policy group to function get_policy_and_add_penalty_record",
+                         title=batch_process_title)
+        return None
 
     gap_duration_in_minutes = 0
-    if policy_subgroup.lower() == "attendance check-in":
+    policy_group_id = None
+    occurred_policy = None
+
+    if policy_id:
+        occurred_policy = get_policy_by_id(policy_id=policy_id)
+        policy_group_id = occurred_policy.penalty_group
+        policy_subgroup = occurred_policy.policy_subgroup
+    elif policy_subgroup.lower() == "attendance check-in":
         gap_duration_in_minutes = attendance.lava_entry_duration_difference
+        policy_group_id = "Attendance"
     elif policy_subgroup.lower() == "attendance check-out":
         gap_duration_in_minutes = attendance.lava_exit_duration_difference
+        policy_group_id = "Attendance"
+    elif policy_subgroup.lower() == "attendance absence":
+        policy_group_id = "Attendance"
+
     policy_occurrence_number = get_penalty_records_number_within_duration(
         employee=employee_changelog_record.employee,
         check_date=attendance.attendance_date,
         duration_in_days=policy_group_obj.reset_duration,
-        policy_subgroup=policy_subgroup) + 1
-    occurred_policy = get_policy_by_filters(
-        policies=applied_policies,
-        group_name=policy_group_obj.name,
-        subgroup_name=policy_subgroup,
-        occurrence_number=policy_occurrence_number,
-        gap_duration_in_minutes=gap_duration_in_minutes)
+        policy_subgroup=policy_subgroup,
+        policy_group=policy_group_id) + 1
+    if not occurred_policy:
+        occurred_policy = get_policy_by_filters(
+            policies=applied_policies,
+            group_name=policy_group_obj.name,
+            subgroup_name=policy_subgroup,
+            occurrence_number=policy_occurrence_number,
+            gap_duration_in_minutes=gap_duration_in_minutes)
     if occurred_policy:
-        add_penalty_record(employee_changelog_record=employee_changelog_record,
-                           batch_id=running_batch_id,
-                           attendance=attendance,
-                           policy=occurred_policy,
-                           policy_occurrence_number=policy_occurrence_number,
-                           existing_penalty_record=None)
+        add_update_penalty_record(employee_changelog_record=employee_changelog_record,
+                                  batch_id=running_batch_id,
+                                  attendance=attendance,
+                                  policy=occurred_policy,
+                                  policy_occurrence_number=policy_occurrence_number,
+                                  existing_penalty_record=existing_penalty_record)
     else:
-        frappe.throw("get_policy_and_add_penalty_record. Error: unrecognized policy")
+        frappe.log_error(message=f"get_policy_and_add_penalty_record. Error: unrecognized policy for "
+                                 f"attendance '{attendance.name}'",
+                         title=batch_process_title)
 
 
-def get_penalty_records_number_within_duration(employee, check_date, duration_in_days, policy_subgroup):
+def get_penalty_records_number_within_duration(employee, check_date, duration_in_days, policy_subgroup, policy_group):
     from_date = check_date - datetime.timedelta(days=duration_in_days)
-    penalty_records_number_within_duration = frappe.get_all("Lava Penalty Record",
-                                                            filters={
-                                                                "employee": employee,
-                                                                "penalty_date": ['>=', from_date],
-                                                                "policy_subgroup": policy_subgroup
-                                                            },
-                                                            order_by='penalty_date', limit_page_length=100)
+
+    penalty_records_number_within_duration = frappe.db.sql(
+        f"""SELECT pr.name
+        FROM `tabLava Penalty Record` pr INNER JOIN `tabLava Penalty Policy` p
+            ON pr.penalty_policy = p.name
+        INNER JOIN `tabLava Penalty Group` g
+            ON p.penalty_group = g.name and g.name = %(policy_group)s
+        WHERE pr.docstatus=1
+            AND LOWER(pr.policy_subgroup) = %(policy_subgroup)s
+            AND LOWER(pr.employee) = %(employee)s
+            AND pr.penalty_date >= %(from_date)s
+        ORDER BY pr.penalty_date
+        """
+        , {'policy_subgroup': policy_subgroup.lower(),
+           'policy_group': policy_group.lower(),
+           'employee': employee,
+           'from_date': from_date}, as_dict=1)
     return len(penalty_records_number_within_duration)
 
 
@@ -813,6 +856,11 @@ def calc_attendance_working_hours_breakdowns(attendance):
         attendance_doc.save(ignore_permissions=True)
 
 
+def get_hr_settings_day_working_hours():
+    doc = frappe.get_single("HR Settings")
+    return doc.standard_working_hours
+
+
 def add_timesheet_record(employee_timesheet, attendance, activity_type=None):
     if attendance.working_hours == 0:
         return
@@ -823,9 +871,15 @@ def add_timesheet_record(employee_timesheet, attendance, activity_type=None):
         "activity_type": activity_type,
         "from_time": attendance.in_time
     })
+    working_hours = 0
+    if attendance.status == "Half Day":
+        working_hours = 0.5 * get_hr_settings_day_working_hours()
+    else:
+        working_hours = attendance.working_hours
+
     employee_timesheet.append("time_logs", {
         "activity_type": activity_type,
-        "hours": attendance.working_hours,
+        "hours": working_hours,
         "expected_hours": attendance.lava_planned_working_hours,
         "from_time": attendance.in_time,
         "to_time": attendance.out_time,
@@ -833,56 +887,69 @@ def add_timesheet_record(employee_timesheet, attendance, activity_type=None):
     })
 
 
-def add_penalty_record(employee_changelog_record, batch_id,
-                       attendance, policy,
-                       policy_occurrence_number,
-                       existing_penalty_record):
+def add_update_penalty_record(employee_changelog_record, batch_id,
+                              attendance, policy,
+                              policy_occurrence_number,
+                              existing_penalty_record):
+    if existing_penalty_record:
+        existing_penalty_record = frappe.get_doc("Lava Penalty Record", existing_penalty_record.name)
     penalty_record = existing_penalty_record
     if not penalty_record:
         penalty_record = frappe.new_doc("Lava Penalty Record")
 
-    deduction_in_days_amount = employee_changelog_record.hourly_rate * policy['deduction_in_days']
+    deduction_in_days_amount = employee_changelog_record.hourly_rate * \
+                               policy['deduction_in_days'] * get_hr_settings_day_working_hours()
     deduction_absolute_amount = policy.get('deduction_amount', 0)
+    deduction_times_time_gap = 0
+    # TODO: rename the filed "deduction in days to fit the rule of 'times time gap' as well
+    if policy['policy_subgroup'] == "attendance check-in":
+        deduction_times_time_gap = (attendance.entry_duration_difference / 60) * \
+                                   employee_changelog_record.hourly_rate * policy['deduction_in_days']
+    elif policy['policy_subgroup'] == "attendance check-out":
+        deduction_times_time_gap = (attendance.exit_duration_difference / 60) * \
+                                   employee_changelog_record.hourly_rate * policy['deduction_in_days']
+
+    deductions = [deduction_absolute_amount, deduction_in_days_amount, deduction_times_time_gap]
 
     if policy['deduction_rule'] == "biggest":
-        if deduction_absolute_amount > deduction_in_days_amount:
-            applied_penalty_deduction_amount = deduction_absolute_amount
-        else:
-            applied_penalty_deduction_amount = deduction_in_days_amount
+        applied_penalty_deduction_amount = max(deductions)
     elif policy['deduction_rule'] == "smallest":
-        if deduction_absolute_amount < deduction_in_days_amount:
-            applied_penalty_deduction_amount = deduction_absolute_amount
-        else:
-            applied_penalty_deduction_amount = deduction_in_days_amount
+        applied_penalty_deduction_amount = min(deductions)
     elif policy['deduction_rule'] == "absolute amount":
         applied_penalty_deduction_amount = deduction_absolute_amount
     elif policy['deduction_rule'] == "deduction in days":
         applied_penalty_deduction_amount = deduction_in_days_amount
+    elif policy['deduction_rule'] == "times time gap":
+        applied_penalty_deduction_amount = deduction_times_time_gap
     else:
-        exp_msg = "Unknown deduction rule '{}' for attendance date {} for employee {}".format(
-            policy.deduction_rule,
-            attendance.attendance_date,
-            employee_changelog_record.employee
-        )
+        exp_msg = f"Unknown deduction rule. subgroup '{policy['policy_subgroup']}' " \
+                  f"of this deduction rule '{policy.deduction_rule}'" \
+                  f" for attendance date {attendance.attendance_date} " \
+                  f"for employee {employee_changelog_record.employee}"
         frappe.log_error(message="add_penalty_record; Error message: '{}'".format(exp_msg),
                          title=batch_process_title)
         return
 
-    penalty_record.employee = employee_changelog_record.employee
-    penalty_record.penalty_policy = policy['policy_name']
-    penalty_record.penalty_date = attendance.attendance_date
     penalty_record.occurrence_number = policy_occurrence_number
     penalty_record.penalty_amount = applied_penalty_deduction_amount
-    penalty_record.action_type = "Automatic"
-    penalty_record.notes = ""
-    penalty_record.lava_payroll_batch = batch_id
+    if not existing_penalty_record:
+        penalty_record.employee = employee_changelog_record.employee
+        penalty_record.penalty_policy = policy['policy_name']
+        penalty_record.policy_subgroup = policy['policy_subgroup']
+        penalty_record.penalty_date = attendance.attendance_date
+        penalty_record.action_type = "Automatic"
+        penalty_record.notes = ""
+        penalty_record.lava_payroll_batch = batch_id
 
     penalty_record.save(ignore_permissions=True)
-    penalty_record.submit()
 
-    create_batch_object_record(batch_id=batch_id, object_type="Lava Penalty Record",
-                               object_id=penalty_record.name,
-                               status="Created", notes="")
+    if not existing_penalty_record:
+        penalty_record.submit()
+
+    if not existing_penalty_record:
+        create_batch_object_record(batch_id=batch_id, object_type="Lava Penalty Record",
+                                   object_id=penalty_record.name,
+                                   status="Created", notes="")
     if applied_penalty_deduction_amount > 0:
         add_additional_salary(penalty_record, batch_id)
 
@@ -892,7 +959,7 @@ def add_additional_salary(penalty_record, batch_id):
     additional_salary_record.employee = penalty_record.employee
     additional_salary_record.payroll_date = penalty_record.penalty_date
     additional_salary_record.overwrite_salary_structure_amount = 0
-    additional_salary_record.amount = penalty_record.penalty_amount  # TODO: use the value from the HR settings
+    additional_salary_record.amount = penalty_record.penalty_amount
     applied_policy = get_policy_by_id(policy_id=penalty_record.penalty_policy)
     additional_salary_record.salary_component = applied_policy.salary_component
 
