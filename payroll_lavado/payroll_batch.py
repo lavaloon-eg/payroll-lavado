@@ -27,9 +27,6 @@ running_batch_start_date: date
 running_batch_end_date: date
 
 
-# TODO: Add hook on employee & salary structure assignment on save event :
-#  create 'employee chengelog record' with the new data
-# TODO: Check if the employee transfer updates the employee record; then no need to ad hook into employee transfer too
 # TODO: Remove 'lava net working hours from lava_custom and all the code using.
 
 def add_batch_to_background_jobs(company: str, start_date: date, end_date: date,
@@ -203,7 +200,7 @@ def get_penalty_policies(company):
         penalty_policies.clear()
     rows = frappe.db.sql("""SELECT 
                             p.name, p.title AS policy_title, p.penalty_group, p.occurrence_number,
-                            p.deduction_in_days, p.deduction_amount,
+                            p.deduction_factor, p.deduction_amount,
                             p.penalty_subgroup,
                             p.tolerance_duration,
                             p.salary_component,
@@ -225,7 +222,7 @@ def get_penalty_policies(company):
                         'reset_duration': row.reset_duration,
                         'occurrence_number': row.occurrence_number,
                         'policy_subgroup': row.penalty_subgroup.lower(),
-                        'deduction_in_days': row.deduction_in_days,
+                        'deduction_factor': row.deduction_factor,
                         'deduction_amount': row.deduction_amount,
                         'tolerance_duration': row.tolerance_duration,
                         "salary_component": row.salary_component,
@@ -434,8 +431,6 @@ def delete_employee_batch_records(employee_id: str, batch_id: str):
         limit_page_start += limit_page_length
         for record in employee_batch_records:
             frappe.delete_doc(doctype=record.object_type, name=record.object_id, force=1)
-
-    frappe.delete_doc(doctype="Employee", name=employee_id, force=1)
 
 
 def validate_shift_types(check_shift_types):
@@ -897,17 +892,16 @@ def add_update_penalty_record(employee_changelog_record, batch_id,
     if not penalty_record:
         penalty_record = frappe.new_doc("Lava Penalty Record")
 
-    deduction_in_days_amount = employee_changelog_record.hourly_rate * \
-                               policy['deduction_in_days'] * get_hr_settings_day_working_hours()
+    deduction_in_days_amount = employee_changelog_record.hourly_rate * policy['deduction_factor'] * \
+                               get_hr_settings_day_working_hours()
     deduction_absolute_amount = policy.get('deduction_amount', 0)
     deduction_times_time_gap = 0
-    # TODO: rename the filed "deduction in days to fit the rule of 'times time gap' as well
     if policy['policy_subgroup'] == "attendance check-in":
         deduction_times_time_gap = (attendance.entry_duration_difference / 60) * \
-                                   employee_changelog_record.hourly_rate * policy['deduction_in_days']
+                                   employee_changelog_record.hourly_rate * policy['deduction_factor']
     elif policy['policy_subgroup'] == "attendance check-out":
         deduction_times_time_gap = (attendance.exit_duration_difference / 60) * \
-                                   employee_changelog_record.hourly_rate * policy['deduction_in_days']
+                                   employee_changelog_record.hourly_rate * policy['deduction_factor']
 
     deductions = [deduction_absolute_amount, deduction_in_days_amount, deduction_times_time_gap]
 
