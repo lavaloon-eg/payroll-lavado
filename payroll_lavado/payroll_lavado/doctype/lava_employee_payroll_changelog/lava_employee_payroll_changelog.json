@@ -20,37 +20,60 @@
   {
    "fieldname": "employee",
    "fieldtype": "Link",
+   "in_filter": 1,
    "in_list_view": 1,
+   "in_preview": 1,
    "in_standard_filter": 1,
    "label": "Employee",
    "options": "Employee",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fieldname": "change_date",
    "fieldtype": "Date",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
    "label": "Change Date",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fetch_from": "employee.designation",
    "fieldname": "designation",
    "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
    "label": "Designation",
    "options": "Designation",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fieldname": "salary_structure_assignment",
    "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
    "label": "Salary Structure Assignment",
-   "options": "Salary Structure Assignment"
+   "options": "Salary Structure Assignment",
+   "read_only": 1
   },
   {
    "fieldname": "company",
    "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
    "label": "Company",
    "options": "Company",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -62,19 +85,29 @@
   {
    "fieldname": "shift_type",
    "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
    "label": "Shift Type",
    "options": "Shift Type",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fieldname": "hourly_rate",
    "fieldtype": "Float",
-   "label": "Hourly Rate"
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Hourly Rate",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-11-30 08:20:21.125733",
+ "modified": "2023-01-14 11:08:51.810004",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Employee Payroll Changelog",

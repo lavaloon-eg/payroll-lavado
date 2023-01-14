@@ -35,36 +35,18 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Employee Payroll Changelog",
-   "link_to": "Lava Employee Payroll Changelog",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Payroll LavaDo Batch",
-   "link_to": "Lava Payroll LavaDo Batch",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Action Log",
-   "link_to": "Lava Action Log",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Batch Administration",
    "link_to": "lavado_batch_admin_page",
    "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Timesheets",
+   "link_to": "Timesheet",
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   },
@@ -85,9 +67,45 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Action Log",
+   "link_to": "Lava Action Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Employee Payroll Changelog",
+   "link_to": "Lava Employee Payroll Changelog",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Batch Objects",
+   "link_to": "Lava Batch Object",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Error Log",
+   "link_to": "Error Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2023-01-04 22:35:30.624388",
+ "modified": "2023-01-14 11:01:05.294438",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Payroll LavaDo",

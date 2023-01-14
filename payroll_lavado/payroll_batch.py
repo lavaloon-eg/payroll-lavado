@@ -246,6 +246,8 @@ def get_policy_designations(company, policy_obj):
 
 def create_resume_batch_process(company: str, start_date: date, end_date: date,
                                 new_batch_id: str, batch_options):
+
+    # TODO: improve this function by considering the action_type and batch_id of the batch_options
     global running_batch_company
     running_batch_company = company
     global running_batch_start_date
@@ -536,7 +538,7 @@ def save_employee_timesheet(employee_id, employee_timesheet):
         employee_timesheet.submit()
         create_batch_object_record(batch_id=running_batch_id, object_type="Timesheet",
                                    object_id=employee_timesheet.name,
-                                   status="In progress", notes="")
+                                   status="Submitted", notes="")
     except frappe.MandatoryError as mandatory_error_ex:
         if "time_logs" in str(mandatory_error_ex):  # no need to save timesheet without time_logs
             frappe.log_error(message="process employee: {}, save timesheet; mandatory Error message: '{}'".format(
@@ -704,8 +706,6 @@ def get_attendance_list(employee: str, start_date: date, end_date: date):
 
 
 def create_employees_first_changelog_records(company: str):
-    # TODO: future enhancement: We can use the employee transfer doctype to enhance the result accuracy
-
     rows = frappe.db.sql("""
     SELECT 
       e.name AS employee_id,e.designation, e.company As employee_company,
@@ -814,7 +814,6 @@ def run_standard_auto_attendance(shift_type: fdict):
 
 def create_employee_timesheet(employee_id, company):
     timesheet = frappe.new_doc('Timesheet')
-    # TODO:Future enhancement avoid duplications in timesheet creation
     timesheet.employee = employee_id
     timesheet.company = company
     return timesheet
@@ -943,7 +942,7 @@ def add_update_penalty_record(employee_changelog_record, batch_id,
     if not existing_penalty_record:
         create_batch_object_record(batch_id=batch_id, object_type="Lava Penalty Record",
                                    object_id=penalty_record.name,
-                                   status="Created", notes="")
+                                   status="Submitted", notes="")
     if applied_penalty_deduction_amount > 0:
         add_additional_salary(penalty_record, batch_id)
 
@@ -963,28 +962,38 @@ def add_additional_salary(penalty_record, batch_id):
     additional_salary_record.submit()
     create_batch_object_record(batch_id=batch_id, object_type="Additional Salary",
                                object_id=additional_salary_record.name,
-                               status="Created", notes="")
+                               status="Submitted", notes="")
+
+
+def parse_batch_options(doc: str):
+    doc_dict = json.loads(doc)
+    return {
+        "chk-clear-error-log-records": doc_dict['chk-clear-error-log-records'],
+        "chk-clear-action-log-records": doc_dict['chk-clear-action-log-records'],
+        "chk-batch-objects": doc_dict['chk-batch-objects'],
+        "chk-biometric-process": doc_dict['chk-biometric-process'],
+        "chk-batch-debug-mode": doc_dict['chk-batch-debug-mode'],
+        "batch_id": doc_dict['batch_id'],
+        "action_type": doc_dict['action_type']
+    }
 
 
 @frappe.whitelist()
 def run_payroll_lavado_batch(doc: str):
     doc_dict = json.loads(doc)
+    batch_options = parse_batch_options(doc)
+    batch_id = doc_dict['batch_id'] or "dummy id"
+
     company = doc_dict['company']
     start_date = getdate(doc_dict['start_date'])
     end_date = getdate(doc_dict['end_date'])
-    batch_options = {
-        "chk-clear-error-log-records": doc_dict['chk-clear-error-log-records'],
-        "chk-clear-action-log-records": doc_dict['chk-clear-action-log-records'],
-        "chk-batch-objects": doc_dict['chk-batch-objects'],
-        "chk-biometric-process": doc_dict['chk-biometric-process'],
-        "chk-batch-debug-mode": doc_dict['chk-batch-debug-mode']
-    }
+
     result_status = ""
     try:
         add_batch_to_background_jobs(company=company,
                                      start_date=start_date,
                                      end_date=end_date,
-                                     new_batch_id="dummy id",
+                                     new_batch_id=batch_id,
                                      batch_options=batch_options)
         result_status = "Success"
     except Exception as ex:
