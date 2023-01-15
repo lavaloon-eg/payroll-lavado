@@ -18,7 +18,8 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
     if source_doctype.lower() == "salary structure assignment":
         salary_structure_assignment = frappe.get_doc("Salary Structure Assignment", source_id)
         salary_structure_doc = frappe.get_doc("Salary Structure", salary_structure_assignment.salary_structure)
-        effective_change_date = salary_structure_doc.from_date
+        # Salary structure has no attribute name from date so i changed it to salary structure assignment
+        effective_change_date = salary_structure_assignment.from_date
     else:
         salary_structure_assignments = frappe.get_all("Salary Structure Assignment",
                                                       filters={'employee': employee_id, 'company': employee_doc.company}
@@ -43,13 +44,12 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
             return
 
     existing_change_log_doc = frappe.get_last_doc("Lava Employee Payroll Changelog",
-                                                  filters={"company": employee_doc.company,
-                                                           "name": employee_id},
+                                                  filters={"company": employee_doc.company, "employee": employee_id},
                                                   order_by="modified desc")
     if existing_change_log_doc:
         if existing_change_log_doc.designation == employee_doc.designation and \
                 existing_change_log_doc.branch == employee_doc.branch and \
-                existing_change_log_doc.salary_structure == salary_structure_doc.name and \
+                existing_change_log_doc.salary_structure_assignment == salary_structure_doc.name and \
                 existing_change_log_doc.shift_type == shift_type_doc.name:
             return  # no need to save a new record
         else:
