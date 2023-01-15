@@ -144,6 +144,15 @@ def get_policy_group_by_id(policy_group_id, groups=None):
     return None
 
 
+def get_policy_group_by_policy_subgroup(policy_sub_group_name: str, policies: []):
+    for policy in policies:
+        if policy.penalty_subgroup.lower() == policy_sub_group_name.lower():
+            group = get_policy_group_by_id(policy.penalty_group)
+            if group:
+                return group
+    return None
+
+
 def get_shift_type_by_id(shift_type_id, check_shift_types=None):
     global shift_types
     if not check_shift_types:
@@ -246,7 +255,6 @@ def get_policy_designations(company, policy_obj):
 
 def create_resume_batch_process(company: str, start_date: date, end_date: date,
                                 new_batch_id: str, batch_options):
-
     # TODO: improve this function by considering the action_type and batch_id of the batch_options
     global running_batch_company
     running_batch_company = company
@@ -409,7 +417,11 @@ def add_action_log(action: str, action_type: str = "LOG", notes: str = None):
 
 def get_batch_last_processed_employee_id(batch_id):
     try:
-        employee_id = frappe.get_last_doc('Lava Batch Object', {"batch_id": batch_id, "object_type": 'Employee'},
+        # TODO: replace by getting all failed employees
+        employee_id = frappe.get_last_doc('Lava Batch Object',
+                                          filters={"batch_id": batch_id,
+                                                   "object_type": 'Employee',
+                                                   "status": ["in", ["Failed", "In progress"]]}
                                           ).object_id
     except frappe.DoesNotExistError:
         employee_id = None
@@ -424,7 +436,7 @@ def delete_employee_batch_records(employee_id: str, batch_id: str):
     while True:
         employee_batch_records = frappe.get_all("Lava Batch Object",
                                                 {'object_type': ['in', batch_related_doctypes],
-                                                 'batch_id': batch_id},
+                                                 'batch_id': batch_id, 'parent': employee_id, 'parenttype': 'Employee'},
                                                 ['object_type', 'object_id'], limit_start=limit_page_start,
                                                 limit_page_length=limit_page_length)
         if not employee_batch_records:
@@ -433,6 +445,19 @@ def delete_employee_batch_records(employee_id: str, batch_id: str):
         limit_page_start += limit_page_length
         for record in employee_batch_records:
             frappe.delete_doc(doctype=record.object_type, name=record.object_id, force=1)
+
+        frappe.db.sql(f"""
+                       delete from `tabLava Batch Object` where object_type = 'Employee' 
+                       and parent = %(employee_id)s and batch_id = %(batch_id)s
+                       """, {'employee_id': employee_id,
+                             'batch_id': batch_id})
+        frappe.db.sql(f"""
+                       delete from `tabLava Batch Object` where parenttype= 'Employee' 
+                       and object_id = %(employee_id)s and batch_id = %(batch_id)s
+                       """, {'employee_id': employee_id,
+                             'batch_id': batch_id})
+
+        frappe.db.commit()
 
 
 def validate_shift_types(check_shift_types):
@@ -450,42 +475,54 @@ def validate_shift_types(check_shift_types):
         frappe.log_error(message="Error message: '{}'".format(exp_msg), title=batch_process_title)
 
 
-def process_employees(last_processed_employee_id: str = None):
-    employees = get_company_employees(running_batch_company, running_batch_id, last_processed_employee_id)
+def process_employees(last_processed_employee_id: str = None, selected_employees: [] = None):
+    employees = None
+    if selected_employees:
+        employees = selected_employees
+    else:
+        employees = get_company_employees(running_batch_company, running_batch_id, last_processed_employee_id)
     for employee in employees:
         process_employee(employee_id=employee.employee_id)
 
 
 def process_employee(employee_id):
-    create_batch_object_record(batch_id=running_batch_id, object_type="Employee",
-                               object_id=employee_id, status="In progress", notes="")
+    employee_batch_object_doc = create_batch_object_record(batch_id=running_batch_id, object_type="Employee",
+                                                           object_id=employee_id, status="In progress", notes="")
     add_action_log(
-        action="Start process employee: {} for company: {} into batch : {}".format(employee_id,
-                                                                                   running_batch_company,
-                                                                                   running_batch_id))
+        action=f"Start process employee: {employee_id} "
+               f"for company: {running_batch_company} "
+               f"into batch : {running_batch_id}")
+    try:
+        attendance_list = get_attendance_list(employee_id, running_batch_start_date, running_batch_end_date)
+        employee_changelog_records = get_employee_changelog_records(max_date=running_batch_end_date,
+                                                                    employee_id=employee_id)
+        employee_timesheet = create_employee_timesheet(employee_id=employee_id,
+                                                       company=running_batch_company)
 
-    attendance_list = get_attendance_list(employee_id, running_batch_start_date, running_batch_end_date)
-    employee_changelog_records = get_employee_changelog_records(max_date=running_batch_end_date,
-                                                                employee_id=employee_id)
-    employee_timesheet = create_employee_timesheet(employee_id=employee_id,
-                                                   company=running_batch_company)
-
-    for attendance in attendance_list:
-        process_employee_attendance(employee_id=employee_id, attendance=attendance,
-                                    employee_changelog_records=employee_changelog_records,
-                                    employee_timesheet=employee_timesheet)
-    if attendance_list:
-        try:
-            save_employee_timesheet(employee_id=employee_id, employee_timesheet=employee_timesheet)
-        except Exception as ex:
-            if "is overlapping with" in str(ex):
-                frappe.log_error(message=f"saving timesheet. Error: '{str(ex)}'",
-                                 title=batch_process_title)
-
-    add_action_log(
-        action="End process employee: {} for company: {} into batch : {}".format(employee_id,
-                                                                                 running_batch_company,
-                                                                                 running_batch_id))
+        for attendance in attendance_list:
+            process_employee_attendance(employee_id=employee_id, attendance=attendance,
+                                        employee_changelog_records=employee_changelog_records,
+                                        employee_timesheet=employee_timesheet)
+        if attendance_list:
+            try:
+                save_employee_timesheet(employee_id=employee_id, employee_timesheet=employee_timesheet)
+            except Exception as ex:
+                if "is overlapping with" in format_exception(ex):
+                    frappe.log_error(message=f"saving timesheet. Error: '{format_exception(ex)}'",
+                                     title=batch_process_title)
+        employee_batch_object_doc.status = "Completed"
+        employee_batch_object_doc.save(ignore_permissions=True)
+        add_action_log(
+            action=f"End process employee: {employee_id} "
+                   f"for company: {running_batch_company} "
+                   f"into batch : {running_batch_id}")
+    except Exception as ex:
+        frappe.log_error(message=f"processing employee {employee_id}. Error: '{format_exception(ex)}'",
+                         title=batch_process_title)
+        add_action_log(
+            action=f"Failed processing employee: {employee_id} "
+                   f"for company: {running_batch_company} "
+                   f"into batch : {running_batch_id}")
 
 
 def process_employee_attendance(employee_id, attendance, employee_changelog_records, employee_timesheet):
@@ -533,28 +570,27 @@ def save_employee_timesheet(employee_id, employee_timesheet):
             return  # no need to save a timesheet without records
 
         employee_timesheet.save(ignore_permissions=True)
-        # employee_timesheet.update_modified()
 
-        employee_timesheet.submit()
+        # employee_timesheet.submit()
         create_batch_object_record(batch_id=running_batch_id, object_type="Timesheet",
                                    object_id=employee_timesheet.name,
-                                   status="Submitted", notes="")
+                                   status="Created", notes="", parent_id=employee_id)
     except frappe.MandatoryError as mandatory_error_ex:
         if "time_logs" in str(mandatory_error_ex):  # no need to save timesheet without time_logs
             frappe.log_error(message="process employee: {}, save timesheet; mandatory Error message: '{}'".format(
                 employee_id, str(mandatory_error_ex)), title=batch_process_title)
-    except Exception as ex:
-        # FIXME: fix the modified doc issue
-        timesheet_old_doc = employee_timesheet
-        employee_timesheet.reload()
-        timesheet_new_doc = employee_timesheet
-        changes = get_changes(doctype_name='Timesheet', doc_old_version=timesheet_old_doc,
-                              doc_new_version=timesheet_new_doc)
-        frappe.log_error(message=f"process employee: {employee_id}, "
-                                 f"save timesheet; Error message: '{format_exception(ex)}',"
-                                 f" changes: '{changes}'",
-                         title=batch_process_title)
-        employee_timesheet.submit()
+    # except Exception as ex:
+    #     # FIXME: fix the modified doc issue
+    #     timesheet_old_doc = employee_timesheet
+    #     employee_timesheet.reload()
+    #     timesheet_new_doc = employee_timesheet
+    #     changes = get_changes(doctype_name='Timesheet', doc_old_version=timesheet_old_doc,
+    #                           doc_new_version=timesheet_new_doc)
+    #     frappe.log_error(message=f"process employee: {employee_id}, "
+    #                              f"save timesheet; Error message: '{format_exception(ex)}',"
+    #                              f" changes: '{changes}'",
+    #                      title=batch_process_title)
+    #     employee_timesheet.submit()
 
 
 def get_changes(doctype_name: str, doc_old_version, doc_new_version):
@@ -571,7 +607,8 @@ def add_penalties(employee_changelog_record, attendance, applied_policies):
     existing_penalty_records = frappe.get_all("Lava Penalty Record",
                                               filters={"employee": employee_changelog_record.employee,
                                                        "penalty_date": ['=', attendance.attendance_date],
-                                                       "docstatus": 1},
+                                                       "docstatus": 1,
+                                                       "action_type": "Manual"},
                                               fields=['*'],
                                               order_by='penalty_date', limit_page_length=100)
 
@@ -590,27 +627,22 @@ def add_penalties(employee_changelog_record, attendance, applied_policies):
             frappe.log_error(message=f"Cannot find policy '{existing_penalty_record.penalty_policy}' "
                                      f"for penalty record '{existing_penalty_record.name}'",
                              title=batch_process_title)
-
+    policy_subgroup = None
     if attendance.status.lower() == "absent":
-        get_policy_and_add_penalty_record(
-            employee_changelog_record=employee_changelog_record,
-            attendance=attendance,
-            policy_group_obj=get_policy_group_by_id("Attendance"),
-            policy_subgroup="attendance absence",
-            applied_policies=applied_policies)
+        policy_subgroup = "attendance absence"
     if attendance.late_entry:
-        get_policy_and_add_penalty_record(
-            employee_changelog_record=employee_changelog_record,
-            attendance=attendance,
-            policy_group_obj=get_policy_group_by_id("Attendance"),
-            policy_subgroup="attendance check-in",
-            applied_policies=applied_policies)
+        policy_subgroup = "attendance check-in"
     if attendance.early_exit:
+        policy_subgroup = "attendance check-out"
+
+    if policy_subgroup:
+        policy_group_obj = get_policy_group_by_policy_subgroup(policy_sub_group_name=policy_subgroup,
+                                                               policies=applied_policies),
         get_policy_and_add_penalty_record(
             employee_changelog_record=employee_changelog_record,
             attendance=attendance,
-            policy_group_obj=get_policy_group_by_id("Attendance"),
-            policy_subgroup="attendance check-out",
+            policy_group_obj=policy_group_obj,
+            policy_subgroup=policy_subgroup,
             applied_policies=applied_policies)
 
 
@@ -796,14 +828,19 @@ def get_company_employees(company: str, batch_id: str, last_processed_employee_i
     return employee_list
 
 
-def create_batch_object_record(batch_id, object_type, object_id, status=None, notes=None):
+def create_batch_object_record(batch_id, object_type, object_id, status=None, notes=None, parent_id=None):
     batch_object_record = frappe.new_doc("Lava Batch Object")
     batch_object_record.batch_id = batch_id
     batch_object_record.object_type = object_type
     batch_object_record.object_id = object_id
     batch_object_record.status = status
     batch_object_record.notes = notes
+    if parent_id:
+        batch_object_record.parenttype = "Employee"
+        batch_object_record.parentfield = "name"
+        batch_object_record.parent = parent_id
     batch_object_record.insert(ignore_permissions=True)
+    return batch_object_record
 
 
 def run_standard_auto_attendance(shift_type: fdict):
@@ -896,10 +933,10 @@ def add_update_penalty_record(employee_changelog_record, batch_id,
     deduction_absolute_amount = policy.get('deduction_amount', 0)
     deduction_times_time_gap = 0
     if policy['policy_subgroup'] == "attendance check-in":
-        deduction_times_time_gap = (attendance.entry_duration_difference / 60) * \
+        deduction_times_time_gap = (attendance.lava_entry_duration_difference / 60) * \
                                    employee_changelog_record.hourly_rate * policy['deduction_factor']
     elif policy['policy_subgroup'] == "attendance check-out":
-        deduction_times_time_gap = (attendance.exit_duration_difference / 60) * \
+        deduction_times_time_gap = (attendance.lava_exit_duration_difference / 60) * \
                                    employee_changelog_record.hourly_rate * policy['deduction_factor']
 
     deductions = [deduction_absolute_amount, deduction_in_days_amount, deduction_times_time_gap]
@@ -936,13 +973,13 @@ def add_update_penalty_record(employee_changelog_record, batch_id,
 
     penalty_record.save(ignore_permissions=True)
 
-    if not existing_penalty_record:
-        penalty_record.submit()
+    # if not existing_penalty_record:
+    #     penalty_record.submit()
 
     if not existing_penalty_record:
         create_batch_object_record(batch_id=batch_id, object_type="Lava Penalty Record",
                                    object_id=penalty_record.name,
-                                   status="Submitted", notes="")
+                                   status="Created", notes="", parent_id=employee_changelog_record.employee)
     if applied_penalty_deduction_amount > 0:
         add_additional_salary(penalty_record, batch_id)
 
@@ -959,10 +996,10 @@ def add_additional_salary(penalty_record, batch_id):
     additional_salary_record.reason = f"Apply policy {penalty_record.penalty_policy}," \
                                       f" occurrence number {penalty_record.occurrence_number}."
     additional_salary_record.save(ignore_permissions=True)
-    additional_salary_record.submit()
+    # additional_salary_record.submit()
     create_batch_object_record(batch_id=batch_id, object_type="Additional Salary",
                                object_id=additional_salary_record.name,
-                               status="Submitted", notes="")
+                               status="Created", notes="", parent_id=penalty_record.employee)
 
 
 def parse_batch_options(doc: str):
