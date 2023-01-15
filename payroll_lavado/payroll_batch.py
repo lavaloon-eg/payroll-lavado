@@ -118,10 +118,14 @@ def get_penalty_policy_groups():
     global penalty_policy_groups
     if penalty_policy_groups:
         penalty_policy_groups.clear()
-    penalty_policy_groups = frappe.get_all("Lava Penalty Group", filters={"docstatus": 1},
-                                           order_by='title', fields=["*"],
-                                           limit_start=0,
-                                           limit_page_length=100)
+    penalty_policy_group_records = frappe.get_all("Lava Penalty Group", filters={"docstatus": 1},
+                                                  order_by='title', fields=["name"],
+                                                  limit_start=0,
+                                                  limit_page_length=200)
+
+    for record in penalty_policy_group_records:
+        doc = frappe.get_doc("Lava Penalty Group", record.name).as_dict()
+        penalty_policy_groups.append(doc)
     return
 
 
@@ -146,7 +150,7 @@ def get_policy_group_by_id(policy_group_id, groups=None):
 
 def get_policy_group_by_policy_subgroup(policy_sub_group_name: str, policies: []):
     for policy in policies:
-        if policy.penalty_subgroup.lower() == policy_sub_group_name.lower():
+        if policy.policy_subgroup.lower() == policy_sub_group_name.lower():
             group = get_policy_group_by_id(policy.penalty_group)
             if group:
                 return group
@@ -637,7 +641,7 @@ def add_penalties(employee_changelog_record, attendance, applied_policies):
 
     if policy_subgroup:
         policy_group_obj = get_policy_group_by_policy_subgroup(policy_sub_group_name=policy_subgroup,
-                                                               policies=applied_policies),
+                                                               policies=applied_policies)
         get_policy_and_add_penalty_record(
             employee_changelog_record=employee_changelog_record,
             attendance=attendance,
@@ -646,9 +650,13 @@ def add_penalties(employee_changelog_record, attendance, applied_policies):
             applied_policies=applied_policies)
 
 
-def get_policy_and_add_penalty_record(employee_changelog_record, attendance,
-                                      policy_group_obj, policy_subgroup, applied_policies,
-                                      policy_id=None, existing_penalty_record=None):
+def get_policy_and_add_penalty_record(employee_changelog_record,
+                                      attendance,
+                                      policy_group_obj: dict,
+                                      policy_subgroup,
+                                      applied_policies,
+                                      policy_id=None,
+                                      existing_penalty_record=None):
     if not policy_group_obj:
         frappe.log_error(message=f"error: passing no policy group to function get_policy_and_add_penalty_record",
                          title=batch_process_title)
