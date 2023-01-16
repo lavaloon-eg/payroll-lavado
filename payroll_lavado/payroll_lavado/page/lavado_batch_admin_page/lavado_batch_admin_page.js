@@ -40,7 +40,7 @@ MyPage = Class.extend({
 })
 
 function process_batch_action(action_type, batch_id){
-    alert('TODO: handle batch actions. action: ' + action_type + ' for batch: ' + batch_id );
+    // alert('action: ' + action_type + ' for batch: ' + batch_id );
     let doc_data = get_validate_inputs(batch_id = batch_id, action_type = action_type);
     run_batch(doc_data);
 }
@@ -158,7 +158,7 @@ function render_batches_data(records){
        $(`#tr${rowIndex}`).append(`<td>${record.batch_process_start_time}</td>`);
        $(`#tr${rowIndex}`).append(`<td>${record.batch_process_end_time}</td>`);
        if (record.status != "Completed"){
-           let button_tag = '<td><button onclick="process_batch_action(action_type=`Resume Batch`, batch_id=`'+ record.batch_id +  '`)">Do action</button></td>'
+           let button_tag = '<td><button onclick="process_batch_action(action_type=`Resume Batch`, batch_id=`'+ record.batch_id +  '`)">Resume</button></td>'
            $(`#tr${rowIndex}`).append($(button_tag));
        }
        rowIndex += 1;
