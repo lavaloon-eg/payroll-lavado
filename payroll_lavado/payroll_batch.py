@@ -605,9 +605,9 @@ def add_penalties(employee_changelog_record, attendance, applied_policies):
     if attendance.status.lower() == "absent":
         policy_subgroups.append("attendance absence")
     if attendance.late_entry:
-        policy_subgroups.append(policy_subgroup="attendance check-in")
+        policy_subgroups.append("attendance check-in")
     if attendance.early_exit:
-        policy_subgroups.append(policy_subgroup="attendance check-out")
+        policy_subgroups.append("attendance check-out")
 
     for policy_subgroup in policy_subgroups:
         policy_group_obj = get_policy_group_by_policy_subgroup(policy_sub_group_name=policy_subgroup,
@@ -622,7 +622,7 @@ def add_penalties(employee_changelog_record, attendance, applied_policies):
 
 def get_policy_and_add_penalty_record(employee_changelog_record,
                                       attendance,
-                                      policy_group_obj: dict,
+                                      policy_group_obj,
                                       policy_subgroup,
                                       applied_policies,
                                       policy_id=None,
@@ -684,16 +684,19 @@ def get_penalty_records_number_within_duration(employee, check_date, duration_in
             ON pr.penalty_policy = p.name
         INNER JOIN `tabLava Penalty Group` g
             ON p.penalty_group = g.name and g.name = %(policy_group)s
-        WHERE pr.docstatus=1
+        WHERE
+            pr.occurrence_number > 0
             AND LOWER(pr.policy_subgroup) = %(policy_subgroup)s
             AND LOWER(pr.employee) = %(employee)s
             AND pr.penalty_date >= %(from_date)s
-        ORDER BY pr.penalty_date
+            AND pr.penalty_date <= %(to_date)s
+        ORDER BY pr.penalty_date, pr.creation
         """
         , {'policy_subgroup': policy_subgroup.lower(),
            'policy_group': policy_group.lower(),
            'employee': employee,
-           'from_date': from_date}, as_dict=1)
+           'from_date': from_date,
+           'to_date': check_date}, as_dict=1)
     return len(penalty_records_number_within_duration)
 
 
