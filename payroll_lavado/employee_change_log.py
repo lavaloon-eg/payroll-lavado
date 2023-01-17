@@ -14,20 +14,19 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
                     employee_old_doc.company == employee_doc.company:
                 return
 
-    salary_structure_doc = None
+    salary_structure_assignment = None
     if source_doctype.lower() == "salary structure assignment":
         salary_structure_assignment = frappe.get_doc("Salary Structure Assignment", source_id)
-        salary_structure_doc = frappe.get_doc("Salary Structure", salary_structure_assignment.salary_structure)
-        # Salary structure has no attribute name from date so i changed it to salary structure assignment
         effective_change_date = salary_structure_assignment.from_date
     else:
         salary_structure_assignments = frappe.get_all("Salary Structure Assignment",
                                                       filters={'employee': employee_id, 'company': employee_doc.company}
                                                       , fields=['*'], order_by="from_date desc")
         if salary_structure_assignments:
-            salary_structure_doc = frappe.get_doc("Salary Structure", salary_structure_assignments[0].salary_structure)
+            salary_structure_assignment = salary_structure_assignments[0]
         else:
             return
+    salary_structure_doc = frappe.get_doc("Salary Structure", salary_structure_assignment.salary_structure)
 
     shift_type_doc = None
     if source_doctype.lower() == "shift assignment":
@@ -65,7 +64,7 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
 
     employee_change_log_record.change_date = effective_change_date
 
-    employee_change_log_record.salary_structure = salary_structure_doc.name
+    employee_change_log_record.salary_structure_assignment = salary_structure_assignments.name
     employee_change_log_record.hourly_rate = salary_structure_doc.hour_rate or 0
 
     employee_change_log_record.shift_type = shift_type_doc.name

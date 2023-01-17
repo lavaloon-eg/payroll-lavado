@@ -18,6 +18,7 @@ clear_action_log_records: bool = False
 clear_error_log_records: bool = False
 clear_batch_objects: bool = False
 run_biometric_attendance_process: bool = False
+run_auto_attendance_batch_options: bool = False
 payroll_activity_type: str = "payroll_activity_type"
 batch_process_title: str = "LavaDo Payroll Process"
 batch_biometric_process_title: str = "run_biometric_attendance_records_process"
@@ -274,11 +275,13 @@ def create_resume_batch_process(company: str, start_date: date, end_date: date, 
     global clear_error_log_records
     global clear_batch_objects
     global run_biometric_attendance_process
+    global run_auto_attendance_batch_options
 
     debug_mode = True if (batch_options['chk-batch-debug-mode'] == 1) else False
     clear_action_log_records = True if (batch_options['chk-clear-action-log-records'] == 1) else False
     clear_error_log_records = True if (batch_options['chk-clear-error-log-records'] == 1) else False
     clear_batch_objects = True if (batch_options['chk-batch-objects'] == 1) else False
+    run_auto_attendance_batch_options = True if (batch_options['chk-auto-attendance'] == 1) else False
     run_biometric_attendance_process = True if (batch_options['chk-biometric-process'] == 1) else False
 
     if clear_action_log_records and batch_action_type != "Resume Batch":
@@ -358,8 +361,8 @@ def create_resume_batch_process(company: str, start_date: date, end_date: date, 
         running_batch_id = new_batch.name
         add_action_log(
             action="Batch: {} for Company: {} created".format(running_batch_id, company))
-
-    run_auto_attendance_process()
+    if run_auto_attendance_batch_options:
+        run_auto_attendance_process()
     process_employees()
     add_action_log(
         action="Batch: {} completed and will update the status".format(running_batch_id))
@@ -996,6 +999,7 @@ def parse_batch_options(doc: str):
         "chk-batch-objects": doc_dict['chk-batch-objects'],
         "chk-biometric-process": doc_dict['chk-biometric-process'],
         "chk-batch-debug-mode": doc_dict['chk-batch-debug-mode'],
+        "chk-auto-attendance": doc_dict['chk-auto-attendance'],
         "batch_id": doc_dict['batch_id'],
         "action_type": doc_dict['action_type']
     }

@@ -52,6 +52,7 @@ function get_validate_inputs(batch_id, action_type){
     let chk_batch_debug_mode =(($("#chk-batch-debug-mode").is(":checked"))? 1 : 0);
     let chk_clear_error_log_records =(($("#chk-clear-error-log-records").is(":checked"))? 1 : 0);
     let chk_clear_action_log_records = (($("#chk-clear-action-log-records").is(":checked"))? 1 : 0);
+    let chk_auto_attendance = (($("#chk-auto-attendance").is(":checked"))? 1 : 0);
     let chk_biometric_process = (($("#chk-biometric-process").is(":checked"))? 1 : 0);
     let chk_batch_objects = (($("#chk-batch-objects").is(":checked"))? 1 : 0);
     let error_msg = "";
@@ -76,6 +77,7 @@ function get_validate_inputs(batch_id, action_type){
         "chk-clear-error-log-records": chk_clear_error_log_records,
         "chk-clear-action-log-records": chk_clear_action_log_records,
         "chk-batch-objects": chk_batch_objects,
+        "chk-auto-attendance": chk_auto_attendance,
         "chk-biometric-process": chk_biometric_process,
         "batch_id": batch_id,
         "action_type": action_type
