@@ -42,10 +42,11 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
         else:
             return
 
-    existing_change_log_doc = frappe.get_last_doc("Lava Employee Payroll Changelog",
-                                                  filters={"company": employee_doc.company, "employee": employee_id},
-                                                  order_by="modified desc")
-    if existing_change_log_doc:
+    existing_change_log_docs = frappe.db.get_all("Lava Employee Payroll Changelog",
+                                                 filters={"company": employee_doc.company, "employee": employee_id},
+                                                 order_by="modified desc")
+    if existing_change_log_docs:
+        existing_change_log_doc = frappe.get_doc("Lava Employee Payroll Changelog", existing_change_log_docs[0])
         if existing_change_log_doc.designation == employee_doc.designation and \
                 existing_change_log_doc.branch == employee_doc.branch and \
                 existing_change_log_doc.salary_structure_assignment == salary_structure_doc.name and \
