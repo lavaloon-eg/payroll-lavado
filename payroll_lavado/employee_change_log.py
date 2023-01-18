@@ -45,6 +45,11 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
     existing_change_log_docs = frappe.db.get_all("Lava Employee Payroll Changelog",
                                                  filters={"company": employee_doc.company, "employee": employee_id},
                                                  order_by="modified desc")
+
+    if source_doctype.lower() == "employee transfer":
+        employee_transfer_doc = frappe.get_doc("Employee Transfer", source_id)
+        effective_change_date = employee_transfer_doc.transfer_date
+
     if existing_change_log_docs:
         existing_change_log_doc = frappe.get_doc("Lava Employee Payroll Changelog", existing_change_log_docs[0])
         if existing_change_log_doc.designation == employee_doc.designation and \
