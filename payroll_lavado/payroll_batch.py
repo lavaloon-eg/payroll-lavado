@@ -631,7 +631,8 @@ def get_policy_and_add_penalty_record(employee_changelog_record,
                                       policy_id=None,
                                       existing_penalty_record=None):
     if not policy_group_obj:
-        frappe.log_error(message=f"error: passing no policy group to function get_policy_and_add_penalty_record",
+        frappe.log_error(message=f"error: passing no policy group to function get_policy_and_add_penalty_record. "
+                                 f"attendance: {attendance.name}, policy_subgroup: {policy_subgroup}",
                          title=batch_process_title)
         return None
 
@@ -657,7 +658,7 @@ def get_policy_and_add_penalty_record(employee_changelog_record,
         check_date=attendance.attendance_date,
         duration_in_days=policy_group_obj.reset_duration,
         policy_subgroup=policy_subgroup,
-        policy_group=policy_group_id) + 1
+        policy_group=policy_group_id)
     if not occurred_policy:
         occurred_policy = get_policy_by_filters(
             policies=applied_policies,
@@ -673,22 +674,27 @@ def get_policy_and_add_penalty_record(employee_changelog_record,
                                   policy_occurrence_number=policy_occurrence_number,
                                   existing_penalty_record=existing_penalty_record)
     else:
-        frappe.log_error(message=f"get_policy_and_add_penalty_record. Error: unrecognized policy for "
-                                 f"attendance '{attendance.name}'",
-                         title=batch_process_title)
+        frappe.throw(msg=f"get_policy_and_add_penalty_record. Error: unrecognized policy for "
+                         f"attendance '{attendance.name}'",
+                     title=batch_process_title)
 
 
 def get_penalty_records_number_within_duration(employee, check_date, duration_in_days, policy_subgroup, policy_group):
     from_date = check_date - datetime.timedelta(days=duration_in_days)
 
+    # FIXME: remove the check of the action type
     penalty_records_number_within_duration = frappe.db.sql(
-        f"""SELECT pr.name
+        f"""SELECT COUNT(pr.name) AS 'records_number'
         FROM `tabLava Penalty Record` pr INNER JOIN `tabLava Penalty Policy` p
             ON pr.penalty_policy = p.name
         INNER JOIN `tabLava Penalty Group` g
             ON p.penalty_group = g.name and g.name = %(policy_group)s
         WHERE
-            pr.occurrence_number > 0
+            (#
+                (pr.occurrence_number >= 0 And pr.action_type='Manual')
+                or
+                (pr.occurrence_number >= 0 And pr.action_type='Automatic')
+            )
             AND LOWER(pr.policy_subgroup) = %(policy_subgroup)s
             AND LOWER(pr.employee) = %(employee)s
             AND pr.penalty_date >= %(from_date)s
@@ -700,7 +706,10 @@ def get_penalty_records_number_within_duration(employee, check_date, duration_in
            'employee': employee,
            'from_date': from_date,
            'to_date': check_date}, as_dict=1)
-    return len(penalty_records_number_within_duration)
+    result = penalty_records_number_within_duration[0].records_number
+    if result == 0:
+        result = 1
+    return result
 
 
 def get_employee_applied_policies(employee_designation):
@@ -960,6 +969,9 @@ def add_update_penalty_record(employee_changelog_record, batch_id,
                                    status="Created", notes="", parent_id=employee_changelog_record.employee)
     elif existing_penalty_record:
         penalty_record.save(ignore_permissions=True)
+
+    frappe.db.commit()
+    # FIXME: code doesn't save the record in db immediately which result a wrong occurrence number in the next record
 
     # if not existing_penalty_record:
     #     penalty_record.submit()
