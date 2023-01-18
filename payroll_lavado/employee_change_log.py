@@ -32,7 +32,7 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
     if source_doctype.lower() == "shift assignment":
         shift_assignment = frappe.get_doc("Shift Assignment", source_id)
         shift_type_doc = frappe.get_doc("Shift Type", shift_assignment.shift_type)
-        effective_change_date = shift_type_doc.start_date
+        effective_change_date = shift_assignment.start_date
     else:
         shift_assignments = frappe.get_all("Shift Assignment",
                                            filters={'employee': employee_id, 'company': employee_doc.company}
@@ -64,7 +64,7 @@ def create_employee_change_log(employee_id: str, source_doctype: str, source_id:
 
     employee_change_log_record.change_date = effective_change_date
 
-    employee_change_log_record.salary_structure_assignment = salary_structure_assignments.name
+    employee_change_log_record.salary_structure_assignment = salary_structure_assignment.name
     employee_change_log_record.hourly_rate = salary_structure_doc.hour_rate or 0
 
     employee_change_log_record.shift_type = shift_type_doc.name

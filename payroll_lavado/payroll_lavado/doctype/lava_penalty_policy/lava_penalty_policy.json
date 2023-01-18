@@ -54,14 +54,13 @@
   },
   {
    "allow_on_submit": 1,
-   "default": "0",
+   "default": "1",
    "fieldname": "enabled",
    "fieldtype": "Check",
    "in_filter": 1,
    "in_list_view": 1,
    "in_preview": 1,
    "label": "Enabled",
-   "read_only": 1,
    "reqd": 1
   },
   {
@@ -125,7 +124,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2023-01-15 10:51:09.389398",
+ "modified": "2023-01-18 12:02:53.740636",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Penalty Policy",
