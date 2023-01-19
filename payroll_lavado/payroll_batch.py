@@ -646,12 +646,14 @@ def get_policy_and_add_penalty_record(employee_changelog_record,
         policy_subgroup = occurred_policy.policy_subgroup
     elif policy_subgroup.lower() == "attendance check-in":
         gap_duration_in_minutes = attendance.lava_entry_duration_difference
-        policy_group_id = "Attendance"
+        policy_group_obj = get_policy_group_by_policy_subgroup("attendance check-in", applied_policies)
     elif policy_subgroup.lower() == "attendance check-out":
         gap_duration_in_minutes = attendance.lava_exit_duration_difference
-        policy_group_id = "Attendance"
+        policy_group_obj = get_policy_group_by_policy_subgroup("attendance check-out", applied_policies)
     elif policy_subgroup.lower() == "attendance absence":
-        policy_group_id = "Attendance"
+        policy_group_obj = get_policy_group_by_policy_subgroup("attendance absence", applied_policies)
+
+    policy_group_id = policy_group_obj.name
 
     policy_occurrence_number = get_penalty_records_number_within_duration(
         employee=employee_changelog_record.employee,
@@ -854,13 +856,21 @@ def calc_attendance_working_hours_breakdowns(attendance):
                 attendance_doc.lava_entry_duration_difference = int(time_diff_in_seconds(
                     attendance_doc.in_time.strftime("%H:%M:%S"),
                     str(shift_type.start_time)) / 60)
+                if attendance_doc.lava_entry_duration_difference == 0:
+                    frappe.throw(msg=f"calc_attendance_working_hours_breakdowns: "
+                                     f"zero late check-in of attendance: {attendance.name}"
+                                 , title=batch_process_title)
             if attendance_doc.early_exit:
                 attendance_doc.lava_exit_duration_difference = int(time_diff_in_seconds(
                     str(shift_type.end_time),
                     attendance_doc.out_time.strftime("%H:%M:%S")) / 60)
+                if attendance_doc.lava_exit_duration_difference == 0:
+                    frappe.throw(msg=f"calc_attendance_working_hours_breakdowns: "
+                                     f"zero early check-out of attendance: {attendance.name}"
+                                 , title=batch_process_title)
             if attendance_doc.lava_entry_duration_difference < 0 or attendance_doc.lava_exit_duration_difference < 0:
-                frappe.log_error(title=batch_process_title,
-                                 message="Negative time diff in attendance {}".format(attendance_doc.name))
+                frappe.throw(title=batch_process_title,
+                             msg=f"Negative time diff in attendance {attendance_doc.name}")
         shift_time_diff = time_diff_in_seconds(str(shift_type.end_time),
                                                str(shift_type.start_time)) / 60
         if shift_time_diff >= 0:
@@ -874,6 +884,10 @@ def calc_attendance_working_hours_breakdowns(attendance):
                 str(shift_type.end_time),
                 str(to_timedelta("00:00:00")))
         attendance_doc.save(ignore_permissions=True)
+    else:
+        frappe.throw(msg=f"calc_attendance_working_hours_breakdowns: "
+                         f"unrecognized shift type of attendance: {attendance.name}"
+                     , title=batch_process_title)
 
 
 def get_hr_settings_day_working_hours():
@@ -911,6 +925,9 @@ def add_update_penalty_record(employee_changelog_record, batch_id,
                               attendance, policy,
                               policy_occurrence_number,
                               existing_penalty_record):
+    if not policy:
+        frappe.throw(msg=f"add_update_penalty_record: invalid inputs "
+                         f"employee_changelog_record: {employee_changelog_record.name}", title=batch_process_title)
     if existing_penalty_record:
         existing_penalty_record = frappe.get_doc("Lava Penalty Record", existing_penalty_record.name)
     penalty_record = existing_penalty_record
