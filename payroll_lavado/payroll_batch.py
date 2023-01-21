@@ -440,6 +440,9 @@ class PayrollLavaDoManager:
         try:
             attendance_list = self.get_attendance_list(employee_id, self.running_batch_start_date,
                                                        self.running_batch_end_date)
+            if not attendance_list:
+                return
+
             employee_changelog_records = self.get_employee_changelog_records(max_date=self.running_batch_end_date,
                                                                              employee_id=employee_id)
             employee_timesheet = self.create_employee_timesheet(employee_id=employee_id,
@@ -449,15 +452,19 @@ class PayrollLavaDoManager:
                 self.process_employee_attendance(employee_id=employee_id, attendance=attendance,
                                                  employee_changelog_records=employee_changelog_records,
                                                  employee_timesheet=employee_timesheet)
-            if attendance_list:
-                try:
-                    self.save_employee_timesheet(employee_id=employee_id, employee_timesheet=employee_timesheet)
-                except Exception as ex:
-                    if "is overlapping with" in format_exception(ex):
-                        frappe.log_error(message=f"saving timesheet. Error: '{format_exception(ex)}'",
-                                         title=batch_process_title)
+            try:
+                self.save_employee_timesheet(employee_id=employee_id, employee_timesheet=employee_timesheet)
+            except Exception as ex:
+                if "is overlapping with" in format_exception(ex):
+                    frappe.log_error(message=f"saving timesheet. Error: '{str(ex)}'",
+                                     title=batch_process_title)
+
+            self.add_batch_employee_penalties(employee_id=employee_id, attendance_list=attendance_list,
+                                              employee_changelog_records=employee_changelog_records)
+
             employee_batch_object_doc.status = "Completed"
             employee_batch_object_doc.save(ignore_permissions=True)
+
             add_action_log(
                 action=f"End process employee: {employee_id} "
                        f"for company: {self.running_batch_company} "
@@ -471,6 +478,20 @@ class PayrollLavaDoManager:
                 action=f"Failed processing employee: {employee_id} "
                        f"for company: {self.running_batch_company} "
                        f"into batch : {self.running_batch_id}")
+
+    def add_batch_employee_penalties(self, employee_id, attendance_list, employee_changelog_records):
+        add_action_log(
+            action=f"Start adding penalties for employee: {employee_id} "
+                   f"for company: {self.running_batch_company} into batch : {self.running_batch_id}")
+        for attendance in attendance_list:
+            employee_changelog_record = self.get_employee_changelog_record(
+                attendance_date=attendance.attendance_date,
+                employee_change_log_records=employee_changelog_records)
+            employee_applied_policies = self.get_employee_applied_policies(
+                employee_designation=employee_changelog_record['designation'] if employee_changelog_record else "")
+            if employee_applied_policies:
+                self.add_batch_employee_attendance_penalties(employee_changelog_record, attendance,
+                                                             employee_applied_policies)
 
     def process_employee_attendance(self, employee_id, attendance, employee_changelog_records, employee_timesheet):
         employee_changelog_record = self.get_employee_changelog_record(
@@ -494,13 +515,6 @@ class PayrollLavaDoManager:
         except Exception as ex:
             frappe.throw(msg=f"add_timesheet_record: Employee: {employee_id}, attendance ID: {attendance.name}, "
                              f" Error message: '{format_exception(ex)}'", title=batch_process_title)
-        employee_applied_policies = self.get_employee_applied_policies(
-            employee_designation=employee_changelog_record['designation'] if employee_changelog_record else "")
-        if employee_applied_policies:
-            add_action_log(
-                action=f"Start adding penalties for employee: {employee_id} "
-                       f"for company: {self.running_batch_company} into batch : {self.running_batch_id}")
-            self.add_penalties(employee_changelog_record, attendance, employee_applied_policies)
 
     def save_employee_timesheet(self, employee_id, employee_timesheet):
         try:
@@ -532,7 +546,7 @@ class PayrollLavaDoManager:
         #                      title=batch_process_title)
         #     employee_timesheet.submit()
 
-    def add_penalties(self, employee_changelog_record, attendance, applied_policies):
+    def add_batch_employee_attendance_penalties(self, employee_changelog_record, attendance, applied_policies):
         existing_penalty_records = frappe.get_all("Lava Penalty Record",
                                                   filters={"employee": employee_changelog_record.employee,
                                                            "penalty_date": ['=', attendance.attendance_date]},
@@ -825,6 +839,7 @@ class PayrollLavaDoManager:
                     str(shift_type.end_time),
                     str(to_timedelta("00:00:00")))
             attendance_doc.save(ignore_permissions=True)
+            frappe.db.commit()
         else:
             frappe.throw(msg=f"calc_attendance_working_hours_breakdowns: "
                              f"unrecognized shift type of attendance: {attendance.name}"
