@@ -187,7 +187,7 @@ class PayrollLavaDoManager:
                     policy['occurrence_number'] <= occurrence_number:
                 if policy['policy_subgroup'].lower() == 'attendance check-in' or \
                         policy['policy_subgroup'].lower() == 'attendance check-out':
-                    if policy['tolerance_duration'] < gap_duration_in_minutes:
+                    if policy['tolerance_duration'] <= gap_duration_in_minutes:
                         return policy
                 else:
                     return policy
@@ -441,7 +441,12 @@ class PayrollLavaDoManager:
             attendance_list = self.get_attendance_list(employee_id, self.running_batch_start_date,
                                                        self.running_batch_end_date)
             if not attendance_list:
-                return
+                employee_batch_object_doc.status = "Failed"
+                employee_batch_object_doc.save(ignore_permissions=True)
+                msg = f"no attendance records for employee: {employee_id} for company: {self.running_batch_company} " \
+                      f"into batch : {self.running_batch_id}"
+                add_action_log(action=msg)
+                frappe.throw(msg=msg, title=batch_process_title)
 
             employee_changelog_records = self.get_employee_changelog_records(max_date=self.running_batch_end_date,
                                                                              employee_id=employee_id)
@@ -464,7 +469,6 @@ class PayrollLavaDoManager:
 
             employee_batch_object_doc.status = "Completed"
             employee_batch_object_doc.save(ignore_permissions=True)
-
             add_action_log(
                 action=f"End process employee: {employee_id} "
                        f"for company: {self.running_batch_company} "
@@ -579,6 +583,11 @@ class PayrollLavaDoManager:
         for policy_subgroup in policy_subgroups:
             policy_group_obj = self.get_policy_group_by_policy_subgroup(policy_sub_group_name=policy_subgroup,
                                                                         policies=applied_policies)
+            if not policy_group_obj:
+                frappe.throw(msg=f"Cannot find policy group  for the auto generating penalties for attendance: "
+                                 f"'{attendance.name}'",
+                             title=batch_process_title)
+
             self.get_policy_and_add_penalty_record(
                 employee_changelog_record=employee_changelog_record,
                 attendance=attendance,
@@ -640,7 +649,9 @@ class PayrollLavaDoManager:
                                            existing_penalty_record=existing_penalty_record)
         else:
             frappe.throw(msg=f"get_policy_and_add_penalty_record. Error: unrecognized policy for "
-                             f"attendance '{attendance.name}'",
+                             f"attendance '{attendance.name}', "
+                             f"employee_changelog_record: {employee_changelog_record.name}, "
+                             f"policy_occurrence_number: {policy_occurrence_number}",
                          title=batch_process_title)
 
     def get_penalty_records_number_within_duration(self, employee, check_date, duration_in_days, policy_subgroup,
