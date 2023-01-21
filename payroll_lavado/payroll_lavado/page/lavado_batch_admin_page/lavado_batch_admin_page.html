@@ -1,19 +1,35 @@
-<div id="main-div">
+<style>
+    table, th, td {
+      border: 1px solid black;
+      border-collapse: collapse;
+    }
+
+    tr:nth-child(even) {
+      background-color: rgba(150, 212, 212, 0.4);
+    }
+
+    tr:hover {background-color: #f2f2f2 ;}
+
+    th:nth-child(even),td:nth-child(even) {
+      background-color: rgba(150, 212, 212, 0.4);
+    }
+</style>
+<div id="main-div" style="overflow-x: auto;">
     <form id="lavado-payroll-batch-form">
         <table>
             <tr><td>Company</td><td>
                 <select id="select-company">
                 </select>
             </td></tr>
-            <tr><td>Start Date</td><td><input id="batch-start-date" type="date"/></td></tr>
+            <tr><td>Start Date</td><td><input id="batch-start-date" type="date" width="100%"/></td></tr>
             <tr><td>End Date</td><td><input id="batch-end-date" type="date"/></td></tr>
-            <tr><td>Is debug development mode</td><td><input id="chk-batch-debug-mode" type="checkbox"/></td></tr>
-            <tr><td>Run auto attendance</td><td><input type="checkbox" id="chk-auto-attendance"/></td></tr>
-            <tr><td>Run biometric process</td><td><input type="checkbox" id="chk-biometric-process"/></td></tr>
-            <tr><td>Clear old error log records</td><td><input type="checkbox" id="chk-clear-error-log-records"/></td></tr>
-            <tr><td>Clear old action log records</td><td><input type="checkbox" id="chk-clear-action-log-records"/></td></tr>
-            <tr><td>Clear old batch objects</td><td><input type="checkbox" id="chk-batch-objects"/></td></tr>
-            <tr><td><input id="btn-run-batch" type="button" value="Start Batch"/></td><td></td></tr>
+            <tr><td colspan="2"><input id="chk-batch-debug-mode" type="checkbox">Is debug development mode</input></td></tr>
+            <tr><td colspan="2"><input type="checkbox" id="chk-auto-attendance">Run auto attendance</input></td></tr>
+            <tr><td colspan="2"><input type="checkbox" id="chk-biometric-process">Run biometric process</input></td></tr>
+            <tr><td colspan="2"><input type="checkbox" id="chk-clear-error-log-records">Clear old error log records</input></td></tr>
+            <tr><td colspan="2"><input type="checkbox" id="chk-clear-action-log-records">Clear old action log records</input></td></tr>
+            <tr><td colspan="2"><input type="checkbox" id="chk-batch-objects">Clear old batch objects</td></tr>
+            <tr><td colspan="2"><input id="btn-run-batch" type="button" value="Start Batch"/></td></tr>
         </table>
     </form>
 </div>
