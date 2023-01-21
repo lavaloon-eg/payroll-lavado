@@ -917,7 +917,8 @@ class PayrollLavaDoManager:
                 "Lava Penalty Record",
                 {"action_type": "Automatic",
                  "penalty_date": attendance.attendance_date,
-                 "policy_subgroup": policy['policy_subgroup']}):
+                 "penalty_policy": policy['policy_name'],
+                 "employee": attendance.employee}):
             penalty_record.save(ignore_permissions=True)
             self.create_batch_object_record(batch_id=batch_id, object_type="Lava Penalty Record",
                                             object_id=penalty_record.name,
@@ -938,7 +939,7 @@ class PayrollLavaDoManager:
     def add_additional_salary(self, penalty_record, batch_id):
         if frappe.db.exists("Additional Salary", {"employee": penalty_record.employee,
                                                   "payroll_date": penalty_record.penalty_date,
-                                                  "reason": ["like", f"%{penalty_record.penalty_policy}%"]}):
+                                                  "reason": ["like", f"%Apply policy: {penalty_record.penalty_policy}%"]}):
             return  # no need to create salary addition for the already created record of the same penalty
 
         additional_salary_record = frappe.new_doc("Additional Salary")
@@ -949,8 +950,9 @@ class PayrollLavaDoManager:
         applied_policy = self.get_policy_by_id(policy_id=penalty_record.penalty_policy)
         additional_salary_record.salary_component = applied_policy.salary_component
 
-        additional_salary_record.reason = f"Apply policy {penalty_record.penalty_policy}," \
-                                          f" occurrence number {penalty_record.occurrence_number}."
+        additional_salary_record.reason = f"Apply policy: {penalty_record.penalty_policy}," \
+                                          f" occurrence number: {penalty_record.occurrence_number}. " \
+                                          f" and penalty ref.: {penalty_record.name}"
         additional_salary_record.save(ignore_permissions=True)
         # additional_salary_record.submit()
         self.create_batch_object_record(batch_id=batch_id, object_type="Additional Salary",
