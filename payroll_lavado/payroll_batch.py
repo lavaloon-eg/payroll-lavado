@@ -454,9 +454,9 @@ class PayrollLavaDoManager:
                                                                 company=self.running_batch_company)
 
             for attendance in attendance_list:
-                self.process_employee_attendance(employee_id=employee_id, attendance=attendance,
-                                                 employee_changelog_records=employee_changelog_records,
-                                                 employee_timesheet=employee_timesheet)
+                attendance = self.process_employee_attendance(employee_id=employee_id, attendance=attendance,
+                                                              employee_changelog_records=employee_changelog_records,
+                                                              employee_timesheet=employee_timesheet)
             try:
                 self.save_employee_timesheet(employee_id=employee_id, employee_timesheet=employee_timesheet)
             except Exception as ex:
@@ -506,7 +506,7 @@ class PayrollLavaDoManager:
                             f"as he hasn't changelog for this date"
             frappe.throw(msg=exception_msg, title=batch_process_title)
         try:
-            self.calc_attendance_working_hours_breakdowns(attendance)
+            attendance = self.calc_attendance_working_hours_breakdowns(attendance)
         except Exception as ex:
             frappe.throw(msg=f"calc_attendance_working_hours_breakdowns: Employee: {employee_id}, "
                              f"attendance ID: {attendance.name}; Error message: '{format_exception(ex)}'",
@@ -516,6 +516,7 @@ class PayrollLavaDoManager:
                 self.add_timesheet_record(employee_timesheet=employee_timesheet,
                                           attendance=attendance,
                                           activity_type=self.payroll_activity_type)
+            return attendance
         except Exception as ex:
             frappe.throw(msg=f"add_timesheet_record: Employee: {employee_id}, attendance ID: {attendance.name}, "
                              f" Error message: '{format_exception(ex)}'", title=batch_process_title)
@@ -556,7 +557,7 @@ class PayrollLavaDoManager:
                                                            "penalty_date": ['=', attendance.attendance_date]},
                                                   fields=['*'],
                                                   order_by='penalty_date', limit_page_length=100)
-
+        attendance = frappe.get_doc("Attendance", attendance.name)
         for existing_penalty_record in existing_penalty_records:
             policy = self.get_policy_by_id(existing_penalty_record.penalty_policy, policies=applied_policies)
             if policy:
@@ -625,9 +626,10 @@ class PayrollLavaDoManager:
         elif policy_subgroup.lower() == "attendance absence":
             policy_group_obj = self.get_policy_group_by_policy_subgroup("attendance absence", applied_policies)
 
-        policy_group_id = policy_group_obj.name
+        if not policy_group_id:
+            policy_group_id = policy_group_obj.name
 
-        policy_occurrence_number = self.get_penalty_records_number_within_duration(
+        policy_occurrence_number = 1 + self.get_penalty_records_number_within_duration(
             employee=employee_changelog_record.employee,
             check_date=attendance.attendance_date,
             duration_in_days=policy_group_obj.reset_duration,
@@ -657,8 +659,6 @@ class PayrollLavaDoManager:
     def get_penalty_records_number_within_duration(self, employee, check_date, duration_in_days, policy_subgroup,
                                                    policy_group):
         from_date = check_date - datetime.timedelta(days=duration_in_days)
-
-        # FIXME: remove the check of the action type
         penalty_records_number_within_duration = frappe.db.sql(
             f"""SELECT COUNT(pr.name) AS 'records_number'
             FROM `tabLava Penalty Record` pr INNER JOIN `tabLava Penalty Policy` p
@@ -666,16 +666,11 @@ class PayrollLavaDoManager:
             INNER JOIN `tabLava Penalty Group` g
                 ON p.penalty_group = g.name and g.name = %(policy_group)s
             WHERE
-                (#
-                    (pr.occurrence_number >= 0 And pr.action_type='Manual')
-                    or
-                    (pr.occurrence_number >= 0 And pr.action_type='Automatic')
-                )
+                pr.occurrence_number >= 0 
                 AND LOWER(pr.policy_subgroup) = %(policy_subgroup)s
                 AND LOWER(pr.employee) = %(employee)s
                 AND pr.penalty_date >= %(from_date)s
                 AND pr.penalty_date <= %(to_date)s
-            ORDER BY pr.penalty_date, pr.creation
             """
             , {'policy_subgroup': policy_subgroup.lower(),
                'policy_group': policy_group.lower(),
@@ -683,8 +678,6 @@ class PayrollLavaDoManager:
                'from_date': from_date,
                'to_date': check_date}, as_dict=1)
         result = penalty_records_number_within_duration[0].records_number
-        if result == 0:
-            result = 1
         return result
 
     def get_employee_applied_policies(self, employee_designation):
@@ -851,6 +844,7 @@ class PayrollLavaDoManager:
                     str(to_timedelta("00:00:00")))
             attendance_doc.save(ignore_permissions=True)
             frappe.db.commit()
+            return attendance_doc
         else:
             frappe.throw(msg=f"calc_attendance_working_hours_breakdowns: "
                              f"unrecognized shift type of attendance: {attendance.name}"
@@ -902,12 +896,13 @@ class PayrollLavaDoManager:
                                    self.get_hr_settings_day_working_hours()
         deduction_absolute_amount = policy.get('deduction_amount', 0)
         deduction_times_time_gap = 0
+        deduction_factor = policy['deduction_factor']
         if policy['policy_subgroup'] == "attendance check-in":
             deduction_times_time_gap = (attendance.lava_entry_duration_difference / 60) * \
-                                       employee_changelog_record.hourly_rate * policy['deduction_factor']
+                                       employee_changelog_record.hourly_rate * deduction_factor
         elif policy['policy_subgroup'] == "attendance check-out":
             deduction_times_time_gap = (attendance.lava_exit_duration_difference / 60) * \
-                                       employee_changelog_record.hourly_rate * policy['deduction_factor']
+                                       employee_changelog_record.hourly_rate * deduction_factor
 
         deductions = [deduction_absolute_amount, deduction_in_days_amount, deduction_times_time_gap]
         applied_penalty_deduction_amount: float = 0
@@ -965,7 +960,8 @@ class PayrollLavaDoManager:
     def add_additional_salary(self, penalty_record, batch_id):
         if frappe.db.exists("Additional Salary", {"employee": penalty_record.employee,
                                                   "payroll_date": penalty_record.penalty_date,
-                                                  "reason": ["like", f"%Apply policy: {penalty_record.penalty_policy}%"]}):
+                                                  "reason": ["like",
+                                                             f"%Apply policy: {penalty_record.penalty_policy}%"]}):
             return  # no need to create salary addition for the already created record of the same penalty
 
         additional_salary_record = frappe.new_doc("Additional Salary")
