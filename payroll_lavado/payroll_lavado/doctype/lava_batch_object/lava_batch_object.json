@@ -17,30 +17,48 @@
   {
    "fieldname": "batch_id",
    "fieldtype": "Link",
+   "in_filter": 1,
    "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
    "label": "Batch ID",
    "options": "Lava Payroll LavaDo Batch",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fieldname": "object_id",
    "fieldtype": "Data",
+   "in_filter": 1,
    "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
    "label": "Object ID",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fieldname": "object_type",
    "fieldtype": "Data",
+   "in_filter": 1,
    "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
    "label": "Object Type",
+   "read_only": 1,
    "reqd": 1
   },
   {
+   "default": "Created",
    "fieldname": "status",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
+   "in_filter": 1,
    "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
    "label": "Status",
+   "options": "Created\nIn progress\nCompleted\nSubmitted\nFailed",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -51,7 +69,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-12-08 11:02:51.186224",
+ "modified": "2023-01-16 23:16:35.750932",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Lava Batch Object",

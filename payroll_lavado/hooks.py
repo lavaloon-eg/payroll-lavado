@@ -95,13 +95,20 @@ app_license = "GNU Affero General Public License v3.0"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-#	}
-# }
+doc_events = {
+    "Employee": {
+        "on_update": "payroll_lavado.payroll_lavado.standard_doctypes.hooks.employee.employee_create_employee_change_log",
+    },
+    "Employee Transfer": {
+        "on_update": "payroll_lavado.payroll_lavado.standard_doctypes.hooks.employee_transfer.employee_transfer_create_employee_change_log"
+    },
+    "Shift Assignment": {
+        "on_update": "payroll_lavado.payroll_lavado.standard_doctypes.hooks.shift_assignment.shift_assignment_create_employee_change_log",
+    },
+    "Salary Structure Assignment": {
+        "on_update": "payroll_lavado.payroll_lavado.standard_doctypes.hooks.salary_structure_assignment.salary_structure_assignment_create_employee_change_log",
+    }
+}
 
 # Scheduled Tasks
 # ---------------

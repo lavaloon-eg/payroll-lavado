@@ -17,7 +17,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Penalty Group",
+   "label": "Penalty Groups",
    "link_to": "Lava Penalty Group",
    "link_type": "DocType",
    "onboard": 0,
@@ -26,8 +26,53 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Penalty Policy",
+   "label": "Penalty Policies",
    "link_to": "Lava Penalty Policy",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Batch Administration",
+   "link_to": "lavado_batch_admin_page",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Timesheets",
+   "link_to": "Timesheet",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Penalty Records",
+   "link_to": "Lava Penalty Record",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Salary addions/deductions",
+   "link_to": "Additional Salary",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Action Log",
+   "link_to": "Lava Action Log",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -44,8 +89,8 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Payroll LavaDo Batch",
-   "link_to": "Lava Payroll LavaDo Batch",
+   "label": "Batch Objects",
+   "link_to": "Lava Batch Object",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -53,14 +98,14 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Action Log",
-   "link_to": "Lava Action Log",
+   "label": "Error Log",
+   "link_to": "Error Log",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   }
  ],
- "modified": "2022-12-11 16:36:31.715310",
+ "modified": "2023-01-14 11:01:05.294438",
  "modified_by": "Administrator",
  "module": "Payroll Lavado",
  "name": "Payroll LavaDo",
