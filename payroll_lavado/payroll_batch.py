@@ -538,18 +538,6 @@ class PayrollLavaDoManager:
                                          f"save timesheet; "
                                          f"mandatory Error message: '{format_exception(mandatory_error_ex)}'",
                                  title=batch_process_title)
-        # except Exception as ex:
-        #     # FIXME: fix the modified doc issue
-        #     timesheet_old_doc = employee_timesheet
-        #     employee_timesheet.reload()
-        #     timesheet_new_doc = employee_timesheet
-        #     changes = get_changes(doctype_name='Timesheet', doc_old_version=timesheet_old_doc,
-        #                           doc_new_version=timesheet_new_doc)
-        #     frappe.log_error(message=f"process employee: {employee_id}, "
-        #                              f"save timesheet; Error message: '{format_exception(ex)}',"
-        #                              f" changes: '{changes}'",
-        #                      title=batch_process_title)
-        #     employee_timesheet.submit()
 
     def add_batch_employee_attendance_penalties(self, employee_changelog_record, attendance, applied_policies):
         existing_penalty_records = frappe.get_all("Lava Penalty Record",
@@ -948,11 +936,6 @@ class PayrollLavaDoManager:
             penalty_record.save(ignore_permissions=True)
 
         frappe.db.commit()
-        # FIXME: code doesn't save the record in db immediately which result a wrong occurrence number
-        #  in the next record
-
-        # if not existing_penalty_record:
-        #     penalty_record.submit()
 
         if applied_penalty_deduction_amount > 0:
             self.add_additional_salary(penalty_record, batch_id)
