@@ -4,6 +4,77 @@ import frappe
 
 
 @frappe.whitelist()
+def get_branches_by_company(filters: str = None):
+    result = {}
+    message = ""
+    filters_dict = json.loads(filters)
+    try:
+        result = frappe.db.sql(f"""
+                                    select distinct branch
+                                    from `tabLava Employee Payroll Changelog`
+                                    where branch is not Null and company = %(company)s
+                                    order by branch
+                                    LIMIT 100
+                                """, {'company': filters_dict['company']}, as_dict=1)
+        message = "Success"
+    except Exception as ex:
+        message = "During getting the branches, Error occurred: '{}'".format(str(ex))
+    finally:
+        return {'result': result, 'message': message}
+
+
+@frappe.whitelist()
+def get_shifts_by_company(filters: str = None):
+    result = {}
+    message = ""
+    filters_dict = json.loads(filters)
+    try:
+        result = frappe.db.sql(f"""
+                                    select distinct shift_type as shift
+                                    from `tabLava Employee Payroll Changelog`
+                                    where shift_type is not Null and company = %(company)s
+                                    order by shift_type
+                                    LIMIT 100
+                                """, {'company': filters_dict['company']}, as_dict=1)
+        message = "Success"
+    except Exception as ex:
+        message = "During getting the shift types, Error occurred: '{}'".format(str(ex))
+    finally:
+        return {'result': result, 'message': message}
+
+
+@frappe.whitelist()
+def get_employees_by_filters(filters: str = None):
+    result = {}
+    message = ""
+    try:
+        filters_dict = json.loads(filters)
+        company = filters_dict['company']
+        branches = filters_dict['branches']
+        shifts = filters_dict['shifts']
+        # TODO: handle the result's limit
+        result = frappe.db.sql(f"""
+                                    select distinct emp.name as employee_id, emp.employee_name
+                                    from `tabLava Employee Payroll Changelog` as chg 
+                                    inner join `tabEmployee` as emp
+                                    on chg.employee= emp.name
+                                    where chg.company = %(company)s
+                                    and chg.branch in (IFNULL(%(branches)s,chg.branch))
+                                    and chg.shift_type in (IFNULL(%(shifts)s,chg.shift_type))
+                                    order by emp.employee_name
+                                    LIMIT 10000
+                                """, {'company': company,
+                                      'branches': branches,
+                                      'shifts': shifts
+                                      }, as_dict=1)
+        message = "Success"
+    except Exception as ex:
+        message = "During getting the employees, Error occurred: '{}'".format(str(ex))
+    finally:
+        return {'result': result, 'message': message}
+
+
+@frappe.whitelist()
 def get_payroll_lavado_batches(filters: str = None):
     result = {}
     message = ""
