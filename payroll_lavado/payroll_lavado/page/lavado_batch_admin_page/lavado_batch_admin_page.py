@@ -48,25 +48,35 @@ def get_employees_by_filters(filters: str = None):
     result = {}
     message = ""
     try:
+        query_string = ""
         filters_dict = json.loads(filters)
         company = filters_dict['company']
         branches = filters_dict['branches']
         shifts = filters_dict['shifts']
         # TODO: handle the result's limit
-        result = frappe.db.sql(f"""
-                                    select distinct emp.name as employee_id, emp.employee_name
-                                    from `tabLava Employee Payroll Changelog` as chg 
-                                    inner join `tabEmployee` as emp
-                                    on chg.employee= emp.name
-                                    where chg.company = %(company)s
-                                    and chg.branch in (IFNULL(%(branches)s,chg.branch))
-                                    and chg.shift_type in (IFNULL(%(shifts)s,chg.shift_type))
-                                    order by emp.employee_name
-                                    LIMIT 10000
-                                """, {'company': company,
-                                      'branches': branches,
-                                      'shifts': shifts
-                                      }, as_dict=1)
+        query_string = f"""
+                            select distinct emp.name as employee_id, emp.employee_name
+                            from `tabLava Employee Payroll Changelog` as chg 
+                            inner join `tabEmployee` as emp
+                            on chg.employee= emp.name
+                            where chg.company = %(company)s
+                        """
+        if branches:
+            query_string += f"""
+                                and chg.branch in ({branches})
+                            """
+        if shifts:
+            query_string += f"""
+                               and chg.shift_type in ({shifts})
+                           """
+
+        query_string += f"""
+                            order by emp.employee_name
+                            LIMIT 10000
+                        """
+
+        result = frappe.db.sql(query_string, {'company': company
+                                              }, as_dict=1)
         message = "Success"
     except Exception as ex:
         message = "During getting the employees, Error occurred: '{}'".format(str(ex))

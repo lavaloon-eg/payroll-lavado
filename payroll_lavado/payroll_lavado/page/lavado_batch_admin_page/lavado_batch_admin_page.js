@@ -60,12 +60,9 @@ function process_batch_action(action_type, batch_id){
 
 function get_validate_inputs(batch_id, action_type){
     let batch_company = $("#select-company :selected").text();
-    let selectedBranches = $("#select-branch :selected").val();
-    selectedBranches = (selectedBranches == undefined)? null: selectedBranches;
-    let selectedShifts = $("#select-shift :selected").val();
-    selectedShifts = (selectedShifts == undefined)? null: selectedShifts;
-    let selectedEmployees = $("#select-employee :selected").val();
-    selectedEmployees = (selectedEmployees == undefined)? null: selectedEmployees;
+    let selectedBranches = convert_selected_options_into_csv("select-branch");
+    let selectedShifts = convert_selected_options_into_csv("select-shift");
+    let selectedEmployees = convert_selected_options_into_csv("select-employee");
     let batch_start_date = new Date($('#batch-start-date').val());
     let batch_end_date = new Date($('#batch-end-date').val());
     let chk_batch_debug_mode =(($("#chk-batch-debug-mode").is(":checked"))? 1 : 0);
@@ -105,6 +102,18 @@ function get_validate_inputs(batch_id, action_type){
         "action_type": action_type
     }
     return doc_data;
+}
+
+function convert_selected_options_into_csv(select_control_id){
+    let selected_options = Array();
+    $(`#${select_control_id} :selected`).each(function(index){
+        selected_options[index] = "'" + $(this).val() + "'" ;
+    });
+    if (selected_options.length == 0){
+        return null;
+    }
+    let csv_value =  selected_options.join(',');
+    return csv_value;
 }
 
 function run_batch(doc_data){
@@ -148,10 +157,10 @@ function get_batches(){
 function get_employees_by_filters(){
     $("#select-employee").empty();
     let batch_company = $("#select-company :selected").text();
-    let selectedBranches = $("#select-branch :selected").val();
-    let selectedShifts = $("#select-shift :selected").val();
-    selectedBranches = (selectedBranches == undefined)? null: selectedBranches;
-    selectedShifts = (selectedShifts == undefined)? null: selectedShifts;
+    let selectedBranches = convert_selected_options_into_csv("select-branch");
+    let selectedShifts = convert_selected_options_into_csv("select-shift");
+    //alert(`branches: ${selectedBranches}`);
+    //alert(`shifts: ${selectedShifts}`);
 
     let filters = {"company": batch_company,
                     "branches": selectedBranches,

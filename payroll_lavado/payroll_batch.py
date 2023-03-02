@@ -427,6 +427,7 @@ class PayrollLavaDoManager:
             frappe.log_error(message=f"Error message: '{exp_msg}'", title=batch_process_title)
 
     def process_employees(self):
+        # TODO: enhance saving batch's options, in initiation process, to use these options in case of the batch resume
         # TODO: enhance the performance by considering paging
         query_str = f""" 
                         SELECT distinct
@@ -445,25 +446,22 @@ class PayrollLavaDoManager:
                         )
                         """
         if self.batch_selected_employees:
-            query_str = + f"""
-                        AND emp.name in (%(selected_employees)s)
+            query_str += f"""
+                        AND emp.name in ({self.batch_selected_employees})
                         """
         else:
             if self.batch_selected_branches:
-                query_str = + f"""
-                            AND chg.branch in (%(selected_branches)s)
+                query_str += f"""
+                            AND chg.branch in ({self.batch_selected_branches})
                             """
             if self.batch_selected_shifts:
-                query_str = + f"""
-                            AND chg.shift_type in (%(selected_shifts)s)
+                query_str += f"""
+                            AND chg.shift_type in ({self.batch_selected_shifts})
                             """
 
         employees = frappe.db.sql(query_str,
                                   {'company': self.running_batch_company,
-                                   'batch_id': self.running_batch_id,
-                                   'selected_employees': self.batch_selected_employees,
-                                   'selected_branches': self.batch_selected_branches,
-                                   'selected_shifts': self.batch_selected_shifts
+                                   'batch_id': self.running_batch_id
                                    },
                                   as_dict=1)
 
@@ -996,7 +994,10 @@ class PayrollLavaDoManager:
             "chk-batch-debug-mode": doc_dict['chk-batch-debug-mode'],
             "chk-auto-attendance": doc_dict['chk-auto-attendance'],
             "batch_id": doc_dict['batch_id'],
-            "action_type": doc_dict['action_type']
+            "action_type": doc_dict['action_type'],
+            "branches": doc_dict['branches'],
+            "shifts": doc_dict['shifts'],
+            "employees": doc_dict['employees']
         }
 
 
