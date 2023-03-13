@@ -18,18 +18,16 @@ MyPage = Class.extend({
              frappe.db.get_list('Company', {
                     fields: ['name']
                 }).then(records => {
+                    let option = new Option('Select a company', 'Select a company');
+                    $("#select-company").append(option);
                     for (var counter in records){
-                        let option = new Option(records[counter]['name'], records[counter]['name']);
+                        option = new Option(records[counter]['name'], records[counter]['name']);
                         $("#select-company").append(option);
                     }
                 });
         });
         $('#select-company').change(function(){
-            let batch_company = $("#select-company :selected").text();
-            get_batches();
-            get_branches_by_company(batch_company);
-            get_shifts_by_company(batch_company);
-            get_employees_by_filters();
+            company_changed();
         });
 
         $('#select-shift').change(function(){
@@ -51,6 +49,14 @@ MyPage = Class.extend({
 		 });
 	}
 })
+
+function company_changed(){
+        let batch_company = $("#select-company :selected").text();
+        get_batches(batch_company);
+        get_branches_by_company(batch_company);
+        get_shifts_by_company(batch_company);
+        get_employees_by_filters();
+}
 
 function process_batch_action(action_type, batch_id){
     // alert('action: ' + action_type + ' for batch: ' + batch_id );
@@ -133,8 +139,7 @@ function run_batch(doc_data){
 	);
 }
 
-function get_batches(){
-    let batch_company = $("#select-company :selected").text();
+function get_batches(batch_company){
     doc_data = {"company": batch_company};
     frappe.call({
             method:
