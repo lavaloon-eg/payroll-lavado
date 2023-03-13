@@ -18,15 +18,26 @@ MyPage = Class.extend({
              frappe.db.get_list('Company', {
                     fields: ['name']
                 }).then(records => {
+                    let option = new Option('Select a company', 'Select a company');
+                    $("#select-company").append(option);
                     for (var counter in records){
-                        let option = new Option(records[counter]['name'], records[counter]['name']);
+                        option = new Option(records[counter]['name'], records[counter]['name']);
                         $("#select-company").append(option);
                     }
                 });
-            });
-        $('#select-company').change(function(){
-            get_batches();
         });
+        $('#select-company').change(function(){
+            company_changed();
+        });
+
+        $('#select-shift').change(function(){
+            get_employees_by_filters();
+        });
+
+        $('#select-branch').change(function(){
+            get_employees_by_filters();
+        });
+
         $('#btn-refresh').click(function(){
             get_batches();
         });
@@ -39,6 +50,14 @@ MyPage = Class.extend({
 	}
 })
 
+function company_changed(){
+        let batch_company = $("#select-company :selected").text();
+        get_batches(batch_company);
+        get_branches_by_company(batch_company);
+        get_shifts_by_company(batch_company);
+        get_employees_by_filters();
+}
+
 function process_batch_action(action_type, batch_id){
     // alert('action: ' + action_type + ' for batch: ' + batch_id );
     let doc_data = get_validate_inputs(batch_id = batch_id, action_type = action_type);
@@ -47,6 +66,9 @@ function process_batch_action(action_type, batch_id){
 
 function get_validate_inputs(batch_id, action_type){
     let batch_company = $("#select-company :selected").text();
+    let selectedBranches = convert_selected_options_into_csv("select-branch");
+    let selectedShifts = convert_selected_options_into_csv("select-shift");
+    let selectedEmployees = convert_selected_options_into_csv("select-employee");
     let batch_start_date = new Date($('#batch-start-date').val());
     let batch_end_date = new Date($('#batch-end-date').val());
     let chk_batch_debug_mode =(($("#chk-batch-debug-mode").is(":checked"))? 1 : 0);
@@ -71,6 +93,9 @@ function get_validate_inputs(batch_id, action_type){
     }
     let doc_data={
         "company": batch_company,
+        "branches": selectedBranches,
+        "shifts": selectedShifts,
+        "employees": selectedEmployees,
         "start_date": batch_start_date,
         "end_date": batch_end_date,
         "chk-batch-debug-mode": chk_batch_debug_mode,
@@ -83,6 +108,18 @@ function get_validate_inputs(batch_id, action_type){
         "action_type": action_type
     }
     return doc_data;
+}
+
+function convert_selected_options_into_csv(select_control_id){
+    let selected_options = Array();
+    $(`#${select_control_id} :selected`).each(function(index){
+        selected_options[index] = "'" + $(this).val() + "'" ;
+    });
+    if (selected_options.length == 0){
+        return null;
+    }
+    let csv_value =  selected_options.join(',');
+    return csv_value;
 }
 
 function run_batch(doc_data){
@@ -102,8 +139,7 @@ function run_batch(doc_data){
 	);
 }
 
-function get_batches(){
-    let batch_company = $("#select-company :selected").text();
+function get_batches(batch_company){
     doc_data = {"company": batch_company};
     frappe.call({
             method:
@@ -121,6 +157,85 @@ function get_batches(){
             }
             }
         })
+}
+
+function get_employees_by_filters(){
+    $("#select-employee").empty();
+    let batch_company = $("#select-company :selected").text();
+    let selectedBranches = convert_selected_options_into_csv("select-branch");
+    let selectedShifts = convert_selected_options_into_csv("select-shift");
+    //alert(`branches: ${selectedBranches}`);
+    //alert(`shifts: ${selectedShifts}`);
+
+    let filters = {"company": batch_company,
+                    "branches": selectedBranches,
+                    "shifts": selectedShifts};
+    frappe.call({
+            method:
+                "payroll_lavado.payroll_lavado.page.lavado_batch_admin_page.lavado_batch_admin_page.get_employees_by_filters",
+            args: {
+                filters: filters,
+            },
+            callback: function (r) {
+            if (r.message.message == "Success") {
+                if(r.message.result){
+                    render_select_options("select-employee", "employee_id","employee_name",r.message.result);
+                }
+            } else {
+                frappe.throw(__(r.message.message));
+            }
+            }
+        })
+}
+
+function get_branches_by_company(company){
+    $("#select-branch").empty();
+    let filters = {"company": company};
+    frappe.call({
+            method:
+                "payroll_lavado.payroll_lavado.page.lavado_batch_admin_page.lavado_batch_admin_page.get_branches_by_company",
+            args: {
+                filters: filters,
+            },
+            callback: function (r) {
+            if (r.message.message == "Success") {
+                if(r.message.result){
+                    render_select_options("select-branch", "branch","branch",r.message.result);
+                }
+            } else {
+                frappe.throw(__(r.message.message));
+            }
+            }
+        })
+}
+
+
+function get_shifts_by_company(company){
+    $("#select-shift").empty();
+    let filters = {"company": company};
+    frappe.call({
+            method:
+                "payroll_lavado.payroll_lavado.page.lavado_batch_admin_page.lavado_batch_admin_page.get_shifts_by_company",
+            args: {
+                filters: filters,
+            },
+            callback: function (r) {
+            if (r.message.message == "Success") {
+                if(r.message.result){
+                    render_select_options("select-shift", "shift", "shift",r.message.result);
+                }
+            } else {
+                frappe.throw(__(r.message.message));
+            }
+            }
+        })
+}
+function render_select_options(select_tag, text_field_name, value_field_name, records){
+    for (var record of records){
+        //alert(record[field_name]);
+        let option = new Option(record[value_field_name], record[text_field_name]);
+        $(`#${select_tag}`).append(option);
+    }
 }
 
 function render_batches_data(records){
@@ -146,7 +261,7 @@ function render_batches_data(records){
     }
     rowIndex = 0;
     for (var record of records){
-       console.log(record)
+       //console.log(record)
        if ($(`#tr${rowIndex}`).length)
        {
             $(`#tr${rowIndex}`).remove();

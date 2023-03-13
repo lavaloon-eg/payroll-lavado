@@ -29,6 +29,9 @@ class PayrollLavaDoManager:
     running_batch_company: str
     running_batch_start_date: date
     running_batch_end_date: date
+    batch_selected_branches = None
+    batch_selected_shifts = None
+    batch_selected_employees = None
 
     def add_batch_to_background_jobs(self, company: str, start_date: date, end_date: date, batch_options):
         self.debug_mode = True if (batch_options["chk-batch-debug-mode"] == 1) else False
@@ -242,6 +245,10 @@ class PayrollLavaDoManager:
 
     def create_resume_batch_process(self, company: str, start_date: date, end_date: date, batch_options):
         batch_action_type = batch_options['action_type']
+        self.batch_selected_branches = batch_options['branches']
+        self.batch_selected_shifts = batch_options['shifts']
+        self.batch_selected_employees = batch_options['employees']
+
         self.running_batch_company = company
         self.running_batch_start_date = start_date
         self.running_batch_end_date = end_date
@@ -303,12 +310,13 @@ class PayrollLavaDoManager:
             frappe.log_error(message=f"validate_shift_types; Error message: '{format_exception(ex)}'",
                              title=batch_process_title)
 
-        self.create_employees_first_changelog_records(self.running_batch_company)
-        add_action_log(
-            action=f"Created the first employees changelog records if missing, "
-                   f"Batch Process for Company: {self.running_batch_company}, "
-                   f"start date: {self.running_batch_start_date}, "
-                   f"end date: {self.running_batch_end_date}")
+        if not self.batch_selected_branches and not self.batch_selected_employees and not self.batch_selected_shifts:
+            self.create_employees_first_changelog_records(self.running_batch_company)
+            add_action_log(
+                action=f"Created the first employees changelog records if missing, "
+                       f"Batch Process for Company: {self.running_batch_company}, "
+                       f"start date: {self.running_batch_start_date}, "
+                       f"end date: {self.running_batch_end_date}")
 
         self.running_batch_id = ""
 
@@ -418,13 +426,45 @@ class PayrollLavaDoManager:
             exp_msg = f"Shift types ({invalid_shift_types_ids}) have missing data"
             frappe.log_error(message=f"Error message: '{exp_msg}'", title=batch_process_title)
 
-    def process_employees(self, selected_employees: [] = None):
-        employees = None
-        if selected_employees:
-            employees = selected_employees
+    def process_employees(self):
+        # TODO: enhance saving batch's options, in initiation process, to use these options in case of the batch resume
+        # TODO: enhance the performance by considering paging
+        query_str = f""" 
+                        SELECT distinct
+                            emp.name AS employee_id 
+                        FROM 
+                            `tabEmployee` as emp
+                            INNER JOIN  `tabLava Employee Payroll Changelog` as chg
+                            ON emp.name = chg.employee
+                        WHERE emp.company= %(company)s
+                        AND emp.name NOT IN 
+                            (SELECT object_id
+                            FROM `tabLava Batch Object` 
+                            WHERE  object_type = "Employee" 
+                                AND batch_id = %(batch_id)s
+                                AND status= "Completed"
+                        )
+                        """
+        if self.batch_selected_employees:
+            query_str += f"""
+                        AND emp.name in ({self.batch_selected_employees})
+                        """
         else:
-            employees = self.get_company_employees_not_processed(self.running_batch_company,
-                                                                 self.running_batch_id)
+            if self.batch_selected_branches:
+                query_str += f"""
+                            AND chg.branch in ({self.batch_selected_branches})
+                            """
+            if self.batch_selected_shifts:
+                query_str += f"""
+                            AND chg.shift_type in ({self.batch_selected_shifts})
+                            """
+
+        employees = frappe.db.sql(query_str,
+                                  {'company': self.running_batch_company,
+                                   'batch_id': self.running_batch_id
+                                   },
+                                  as_dict=1)
+
         for employee in employees:
             self.process_employee(employee_id=employee.employee_id)
 
@@ -745,29 +785,6 @@ class PayrollLavaDoManager:
                 return record
         return None
 
-    def get_company_employees_not_processed(self, company: str, batch_id: str):
-        # TODO: enhance the performance by considering paging
-        query_str = """ 
-                        SELECT 
-                            name AS employee_id 
-                        FROM 
-                            `tabEmployee` 
-                        WHERE company= %(company)s
-                        AND name NOT IN 
-                            (SELECT object_id
-                            FROM `tabLava Batch Object` 
-                            WHERE  object_type = "Employee" 
-                                AND batch_id = %(batch_id)s
-                                AND status= "Completed"
-                        )
-                        """
-
-        employee_list = frappe.db.sql(query_str,
-                                      {'company': company, 'batch_id': batch_id},
-                                      as_dict=1)
-
-        return employee_list
-
     def create_batch_object_record(self, batch_id, object_type, object_id, status=None, notes=None, parent_id=None):
         batch_object_record = frappe.new_doc("Lava Batch Object")
         batch_object_record.batch_id = batch_id
@@ -832,6 +849,8 @@ class PayrollLavaDoManager:
                     str(to_timedelta("00:00:00")))
             attendance_doc.save(ignore_permissions=True)
             frappe.db.commit()
+            return attendance_doc
+        elif not attendance_doc.shift and attendance_doc.status == "On Leave":
             return attendance_doc
         else:
             frappe.throw(msg=f"calc_attendance_working_hours_breakdowns: "
@@ -975,7 +994,10 @@ class PayrollLavaDoManager:
             "chk-batch-debug-mode": doc_dict['chk-batch-debug-mode'],
             "chk-auto-attendance": doc_dict['chk-auto-attendance'],
             "batch_id": doc_dict['batch_id'],
-            "action_type": doc_dict['action_type']
+            "action_type": doc_dict['action_type'],
+            "branches": doc_dict['branches'],
+            "shifts": doc_dict['shifts'],
+            "employees": doc_dict['employees']
         }
 
 
