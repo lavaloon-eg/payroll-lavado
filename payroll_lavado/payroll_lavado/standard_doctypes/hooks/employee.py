@@ -1,5 +1,5 @@
 import frappe
-from erpnext.hr.doctype.employee.employee import Employee
+from erpnext.setup.doctype.employee.employee import Employee
 from payroll_lavado.employee_change_log import create_employee_change_log
 
 
