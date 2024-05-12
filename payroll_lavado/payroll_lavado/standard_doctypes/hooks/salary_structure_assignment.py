@@ -1,5 +1,5 @@
 import frappe
-from erpnext.payroll.doctype.salary_structure_assignment.salary_structure_assignment import SalaryStructureAssignment
+from hrms.payroll.doctype.salary_structure_assignment.salary_structure_assignment import SalaryStructureAssignment
 from payroll_lavado.employee_change_log import create_employee_change_log
 
 
