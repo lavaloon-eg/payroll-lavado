@@ -1,5 +1,5 @@
 import frappe
-from hrms.doctype.employee_transfer.employee_transfer import EmployeeTransfer
+from hrms.hr.doctype.employee_transfer.employee_transfer import EmployeeTransfer
 from payroll_lavado.employee_change_log import create_employee_change_log
 
 
