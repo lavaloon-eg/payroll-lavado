@@ -1,5 +1,5 @@
 import frappe
-from erpnext.hr.doctype.shift_assignment.shift_assignment import ShiftAssignment
+from hrms.doctype.shift_assignment.shift_assignment import ShiftAssignment
 from payroll_lavado.employee_change_log import create_employee_change_log
 
 

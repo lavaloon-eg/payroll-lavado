@@ -7,6 +7,8 @@ This file tracks changes for the LavaDo Payroll app.
 
 ## Pending Changes
 
+## 1.1.0
+
 * Add attendance custom fields
 * Detect when lava_custom isn't installed for biometric attendance
 * Fix early exit duration calculation
